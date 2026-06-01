@@ -11,19 +11,19 @@
 html,body{width:100%;height:100%;overflow:hidden;background:#05070c;color:#dff;
   font-family:'Share Tech Mono',monospace;touch-action:none;user-select:none;-webkit-user-select:none;cursor:none}
 #c{display:block;width:100%;height:100%}
-/* boot / end overlays */
 .screen{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;
   gap:16px;text-align:center;padding:26px;cursor:none;background:radial-gradient(ellipse at 50% 45%,#0c1830,#05070c 70%)}
 .screen.hide{display:none}
 .logo{font-family:'Press Start 2P';font-size:clamp(22px,6vw,46px);color:#36e0ff;letter-spacing:2px;
   text-shadow:0 0 14px #36e0ff,0 0 38px rgba(54,224,255,.4)}
 .sub{font-family:'Press Start 2P';font-size:9px;color:#ffd23f;letter-spacing:3px;text-shadow:0 0 8px #ffd23f}
-.tip{color:#8fb2c9;font-size:13px;max-width:480px;line-height:1.8}
+.tip{color:#8fb2c9;font-size:13px;max-width:500px;line-height:1.8}
 .tip b{color:#dff}
+.hi{font-family:'Press Start 2P';font-size:11px;color:#3dff9e;text-shadow:0 0 8px rgba(61,255,158,.5)}
 .btn{font-family:'Press Start 2P';font-size:13px;padding:16px 28px;border:2px solid #36e0ff;color:#36e0ff;background:transparent;
   border-radius:6px;cursor:pointer;letter-spacing:2px}
 .btn:hover{background:#36e0ff;color:#04121a;box-shadow:0 0 24px rgba(54,224,255,.6)}
-.cta{margin-top:8px;padding:16px 20px;border:2px solid #3dff9e;border-radius:8px;background:rgba(61,255,158,.07);max-width:420px}
+.cta{margin-top:8px;padding:16px 20px;border:2px solid #3dff9e;border-radius:8px;background:rgba(61,255,158,.07);max-width:430px}
 .cta .big{font-family:'Press Start 2P';font-size:12px;color:#3dff9e;line-height:1.7;text-shadow:0 0 8px rgba(61,255,158,.5)}
 .cta .ph{font-size:20px;color:#ffd23f;margin-top:8px;letter-spacing:1px}
 .cta .small{font-size:11px;color:#8fb2c9;margin-top:6px}
@@ -39,8 +39,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:#05070c;color:#dff;
 <div class="screen" id="boot">
   <div class="logo">DRAIN BLASTERS</div>
   <div class="sub">JOHNSON BROS &middot; HYDRO-JET PATROL</div>
-  <div class="tip">The drain's <b>clogged solid</b>. Drop the camera, fire up the hydro-jetter, and <b>blast the gunk monsters</b> crawling up the pipe before the drain backs up!<br><br>
-    <b>AIM</b> with your mouse &middot; <b>HOLD CLICK</b> (or SPACE) to blast &middot; watch your <b>PSI</b>.</div>
+  <div class="tip">The drain's <b>clogged solid</b>. Drop the camera, fire up the hydro-jetter, and <b>blast the gunk monsters</b> crawling up the pipe!<br>Big clogs <b>split into chunks</b> &mdash; clear each <b>WAVE</b> before the drain backs up.<br><br>
+    <b>AIM</b> mouse &middot; <b>HOLD CLICK</b> / SPACE to blast &middot; grab <b>power-ups</b> &middot; mind your <b>PSI</b>.</div>
+  <div class="hi" id="bootHi">HI 000000</div>
   <div class="btn" id="startBtn">&#9654; DROP THE CAMERA</div>
   <div class="tip" style="font-size:10px">A Johnson Bros Plumbing &amp; Drain Cleaning joint <span class="blink">_</span></div>
 </div>
@@ -48,6 +49,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#05070c;color:#dff;
 <div class="screen hide" id="endScreen">
   <div class="endTitle" id="endTitle"></div>
   <div class="tip" id="endBody"></div>
+  <div class="hi" id="endHi"></div>
   <div class="cta">
     <div class="big" id="ctaBig">CLOGGED FOR REAL?</div>
     <div class="ph">&#128222; (781) 555-DRAIN</div>
@@ -58,11 +60,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#05070c;color:#dff;
 
 <script>
 'use strict';
-const BUILD='v0.1 · 2026-06-01';
-/* ============================================================
-   DRAIN BLASTERS — first-person down-the-pipe hydro-jet shooter
-   Single file, no deps. Johnson Bros advergame.
-   ============================================================ */
+const BUILD='v0.2 · 2026-06-01 · waves';
 const cv=document.getElementById('c'), ctx=cv.getContext('2d');
 let W=0,H=0,DPR=1,CX=0,CY=0,pipeR=0,FOCAL=420;
 function resize(){ DPR=Math.min(window.devicePixelRatio||1,2);
@@ -73,319 +71,293 @@ window.addEventListener('resize',resize);
 
 /* ---------- clog monster types ---------- */
 const CLOGS={
-  grease: {name:'Grease Blob', col:'#d9c24a', col2:'#b59a20', hp:2.4, sp:0.10, sz:30, dmg:14, score:50, wob:0.5},
-  hair:   {name:'Hair Wad',    col:'#6a5847', col2:'#3a2e22', hp:1.6, sp:0.16, sz:26, dmg:11, score:60, wob:1.1},
-  wipe:   {name:'"Flushable" Wipe', col:'#e8eef0', col2:'#b9c4c8', hp:1.2, sp:0.22, sz:24, dmg:9,  score:70, wob:0.3},
-  root:   {name:'Tree Root',   col:'#7a8a3a', col2:'#4d5a22', hp:4.5, sp:0.07, sz:34, dmg:18, score:110,wob:0.2},
-  scum:   {name:'Soap Scum',   col:'#9fb6c4', col2:'#6e8694', hp:2.0, sp:0.13, sz:28, dmg:12, score:55, wob:0.7},
+  grease: {name:'Grease Blob', col:'#d9c24a', col2:'#b59a20', hp:2.4, sp:0.10, sz:30, dmg:13, score:50, move:'drift'},
+  hair:   {name:'Hair Wad',    col:'#6a5847', col2:'#3a2e22', hp:1.6, sp:0.15, sz:26, dmg:10, score:60, move:'spin'},
+  wipe:   {name:'"Flushable" Wipe', col:'#e8eef0', col2:'#b9c4c8', hp:1.2, sp:0.20, sz:24, dmg:8,  score:70, move:'zig'},
+  root:   {name:'Tree Root',   col:'#7a8a3a', col2:'#4d5a22', hp:5.0, sp:0.065,sz:36, dmg:18, score:120, move:'drift'},
+  scum:   {name:'Soap Scum',   col:'#9fb6c4', col2:'#6e8694', hp:2.0, sp:0.12, sz:28, dmg:11, score:55, move:'drift'},
 };
 const CLOG_KEYS=Object.keys(CLOGS);
+const SPLITTY=['grease','root','scum'];   // these burst into chunks; hair/wipe are already small
 
-/* ---------- state ---------- */
-let state;
+/* ---------- power-ups ---------- */
+const POWS={
+  turbo:  {name:'TURBO PSI',   col:'#36e0ff', ic:'⚡', desc:'PSI maxed & fast for 8s'},
+  spread: {name:'SPREAD JET',  col:'#b26bff', ic:'✷', desc:'Hit many clogs at once, 8s'},
+  bomb:   {name:'DESCALER BOMB',col:'#ff4d6d',ic:'\u{1F4A5}', desc:'Clears the whole pipe!'},
+  freeze: {name:'PIPE FREEZE', col:'#7fd6ff', ic:'❄', desc:'Slows the gunk, 6s'},
+};
+const POW_KEYS=Object.keys(POWS);
+
+const BOSS_WAVE=4;
+let state, toast=null, toastT=0, _sched=[];
+let HI=+(localStorage.getItem('db_hi')||0);
+
 function newGame(){
-  state={
-    phase:'PLAY',           // PLAY | WIN | LOSE
-    t:0,                    // seconds elapsed
-    clogs:[], parts:[], splats:[],
-    psi:100, firing:false,
-    backup:0,               // 0..100, lose at 100
-    score:0, kills:0,
-    depth:0,                // cosmetic "feet down the pipe"
-    aimX:CX, aimY:CY,
-    spawnT:0, spawnGap:1.1,
-    wave:1, bossArmed:false, boss:null, bossKills:0,
-    shake:0, flash:0, hitStop:0,
-    streamHeat:0,           // visual flicker
-    ringScroll:0,
-  };
+  state={ phase:'PLAY', t:0, clogs:[], pows:[], parts:[], splats:[],
+    psi:100, firing:false, backup:0, score:0, kills:0, depth:0,
+    aimX:CX, aimY:CY, combo:0, comboT:0,
+    wave:0, toSpawn:0, spawnT:0, spawnGap:1.1, betweenWaves:0,
+    boss:null, bossArmed:false,
+    fx:{turbo:0,spread:0,freeze:0}, powT:9,
+    shake:0, flash:0, warnPulse:0, ringScroll:0, streamHeat:0 };
+  nextWave();
+}
+function nextWave(){
+  state.wave++;
+  if(state.wave===BOSS_WAVE){ toast='⚠ THE MASTER CLOG APPROACHES'; toastT=2.6; setTimeout2(spawnBoss,2.4); state.toSpawn=0; return; }
+  state.toSpawn = 6 + state.wave*3;          // clogs to send this wave
+  state.spawnGap = Math.max(0.5, 1.15 - state.wave*0.07);
+  state.spawnT = 0.6;
+  toast='PIPE SECTION '+state.wave+' — FLUSH IT OUT!'; toastT=2.2;
 }
 
 /* ---------- spawning ---------- */
 function rand(a,b){ return a+Math.random()*(b-a); }
-function spawnClog(type){
-  const k=type||CLOG_KEYS[(Math.random()*CLOG_KEYS.length)|0];
+function spawnClog(opt){
+  opt=opt||{};
+  const k=opt.k||CLOG_KEYS[(Math.random()*CLOG_KEYS.length)|0];
   const d=CLOGS[k];
-  state.clogs.push({ k, hp:d.hp, maxhp:d.hp, z:1.0, a:rand(0,Math.PI*2), r:rand(0.35,0.96),
-    spin:rand(-1,1)*0.4, sp:d.sp*rand(0.85,1.2), sz:d.sz*rand(0.9,1.15), flash:0, dead:false });
+  const tier=opt.tier!=null?opt.tier:1;       // 1=big, 0=chunk
+  const szMul=tier?1:0.55, hpMul=tier?1:0.4;
+  state.clogs.push({ k, hp:d.hp*hpMul, maxhp:d.hp*hpMul, tier,
+    z:opt.z!=null?opt.z:1.0, a:opt.a!=null?opt.a:rand(0,Math.PI*2), r:opt.r!=null?opt.r:rand(0.32,0.95),
+    a0:0, spin:rand(-1,1)*0.4, sp:d.sp*rand(0.85,1.2)*(tier?1:1.5), sz:d.sz*szMul*rand(0.9,1.12),
+    flash:0, dead:false });
 }
-function spawnBoss(){
-  state.boss={ hp:90, maxhp:90, z:1.0, a:0, r:0, sp:0.018, sz:120, flash:0, blobs:[] };
-  // orbiting mini-blobs for visual menace
-  for(let i=0;i<6;i++) state.boss.blobs.push({a:i/6*Math.PI*2, r:0.5, sp:rand(.4,.8)});
-  state.clogs.length=0;
-  toast=null;
-}
+function spawnBoss(){ state.boss={ hp:100,maxhp:100, z:1.0, a:0, r:0, sp:0.02, sz:120, flash:0, blobs:[] };
+  for(let i=0;i<6;i++) state.boss.blobs.push({a:i/6*Math.PI*2,r:0.5,sp:rand(.4,.8)}); state.clogs.length=0; toast=null; }
+function spawnPow(){ const k=POW_KEYS[(Math.random()*POW_KEYS.length)|0];
+  state.pows.push({k,z:1.0,a:rand(0,Math.PI*2),r:rand(0.4,0.85),spin:rand(-1,1)*0.5,sz:22,bob:rand(0,7),dead:false}); }
 
-/* ---------- projection: depth z (1 far → 0 lens) ---------- */
-function proj(z){ return FOCAL/(z*FOCAL*1.55+FOCAL*0.32); }   // scale factor, grows as z→0
-function clogScreen(o){ const s=proj(o.z); const rr=o.r*pipeR*s;
+/* ---------- projection ---------- */
+function proj(z){ return FOCAL/(z*FOCAL*1.55+FOCAL*0.32); }
+function scrn(o){ const s=proj(o.z); const rr=o.r*pipeR*s;
   return { x:CX+Math.cos(o.a)*rr, y:CY+Math.sin(o.a)*rr, s, size:o.sz*s }; }
 
 /* ---------- firing ---------- */
 function tryHit(dt){
   if(!state.firing||state.psi<=0) return;
-  state.psi=Math.max(0,state.psi-46*dt);
+  const drain = state.fx.turbo>0?20:46;
+  state.psi=Math.max(0,state.psi-drain*dt);
   state.streamHeat=Math.min(1,state.streamHeat+dt*6);
   const ax=state.aimX, ay=state.aimY;
-  // boss takes priority if present and crosshair near it
-  if(state.boss){ const b=clogScreen(state.boss);
-    if(Math.hypot(ax-b.x,ay-b.y) < b.size*0.6){ state.boss.hp-=20*dt; state.boss.flash=1;
-      sprayAt(ax,ay,'#7fd6ff',2); if(state.boss.hp<=0) killBoss(); }
-    return;
-  }
-  // hit the frontmost clog under the crosshair
+  // power-ups: blasting one collects it
+  for(const p of state.pows){ if(p.dead)continue; const c=scrn(p);
+    if(Math.hypot(ax-c.x,ay-c.y)<Math.max(20,c.size*0.9)){ collectPow(p); } }
+  if(state.boss){ const b=scrn(state.boss);
+    if(Math.hypot(ax-b.x,ay-b.y)<b.size*0.6){ state.boss.hp-=(state.fx.turbo>0?30:20)*dt; state.boss.flash=1;
+      sprayAt(ax,ay,'#7fd6ff',2); if(state.boss.hp<=0) killBoss(); } return; }
+  // spread = hit all clogs near crosshair; else just the frontmost
+  const dps=(state.fx.turbo>0?6.5:4.2);
+  if(state.fx.spread>0){ const R=Math.max(60,pipeR*0.22);
+    for(const o of state.clogs){ if(o.dead)continue; const c=scrn(o);
+      if(Math.hypot(ax-c.x,ay-c.y)<R+c.size*0.4){ o.hp-=dps*0.7*dt; o.flash=1; if(o.hp<=0)killClog(o);} }
+    sprayAt(ax,ay,'#b26bff',3); return; }
   let best=null,bestZ=2;
-  for(const o of state.clogs){ if(o.dead)continue; const c=clogScreen(o);
-    const hitR=Math.max(14,c.size*0.62);
-    if(Math.hypot(ax-c.x,ay-c.y)<hitR && o.z<bestZ){ best=o; bestZ=o.z; } }
-  if(best){ best.hp-=4.2*dt; best.flash=1; const c=clogScreen(best); sprayAt(c.x,c.y,CLOGS[best.k].col,2);
-    if(best.hp<=0) killClog(best); }
+  for(const o of state.clogs){ if(o.dead)continue; const c=scrn(o);
+    if(Math.hypot(ax-c.x,ay-c.y)<Math.max(14,c.size*0.62) && o.z<bestZ){ best=o; bestZ=o.z; } }
+  if(best){ best.hp-=dps*dt; best.flash=1; const c=scrn(best); sprayAt(c.x,c.y,CLOGS[best.k].col,2); if(best.hp<=0)killClog(best); }
 }
-function killClog(o){ o.dead=true; const c=clogScreen(o); const d=CLOGS[o.k];
-  state.score+=d.score; state.kills++; state.backup=Math.max(0,state.backup-3);
-  burst(c.x,c.y,d.col,d.col2,18); sfx('splat'); state.shake=Math.max(state.shake,5);
+function bumpCombo(){ state.combo++; state.comboT=2.4; }
+function killClog(o){ if(o.dead)return; o.dead=true; const c=scrn(o), d=CLOGS[o.k];
+  bumpCombo(); const mult=1+(state.combo-1)*0.25;
+  state.score+=Math.round(d.score*(o.tier?1:0.6)*mult); state.kills++;
+  state.backup=Math.max(0,state.backup-2);
+  burst(c.x,c.y,d.col,d.col2,o.tier?22:12); sfx('splat'); state.shake=Math.max(state.shake,o.tier?6:3);
+  // SPLIT: big splitty clogs burst into 2-3 smaller, faster chunks
+  if(o.tier && SPLITTY.includes(o.k)){ const n=o.k==='root'?3:2;
+    for(let i=0;i<n;i++) spawnClog({k:o.k,tier:0,z:o.z,a:o.a+rand(-0.5,0.5),r:Math.max(0.15,Math.min(0.98,o.r+rand(-0.18,0.18)))}); }
 }
-function killBoss(){ const b=clogScreen(state.boss); burst(b.x,b.y,'#7a8a3a','#d9c24a',60);
-  burst(b.x,b.y,'#6a5847','#b59a20',60); state.score+=2000; state.shake=14; state.flash=0.7; sfx('boss');
-  state.boss=null; setEnd('WIN'); }
+function killBoss(){ const b=scrn(state.boss); burst(b.x,b.y,'#7a8a3a','#d9c24a',60); burst(b.x,b.y,'#6a5847','#b59a20',60);
+  state.score+=3000; state.shake=14; state.flash=0.7; sfx('boss'); state.boss=null; setEnd('WIN'); }
+function collectPow(p){ p.dead=true; const c=scrn(p); burst(c.x,c.y,POWS[p.k].col,'#fff',20); sfx('pow');
+  state.shake=Math.max(state.shake,5); toast=POWS[p.k].ic+' '+POWS[p.k].name+'!'; toastT=1.6;
+  if(p.k==='turbo'){ state.fx.turbo=8; state.psi=100; }
+  else if(p.k==='spread'){ state.fx.spread=8; }
+  else if(p.k==='freeze'){ state.fx.freeze=6; }
+  else if(p.k==='bomb'){ const arr=state.clogs.slice(); for(const o of arr) killClog(o); state.flash=0.6; state.shake=12; }
+}
 
 /* ---------- update ---------- */
 function update(dt){
-  state.t+=dt; state.depth+=dt* (state.firing?9:5);
+  state.t+=dt; state.depth+=dt*(state.firing?9:5);
   state.ringScroll=(state.ringScroll+dt*(state.firing?1.6:0.9))%1;
-  if(!state.firing){ state.psi=Math.min(100,state.psi+26*dt); state.streamHeat=Math.max(0,state.streamHeat-dt*4); }
+  if(!state.firing||state.fx.turbo>0){ const reg=state.fx.turbo>0?60:26; state.psi=Math.min(100,state.psi+reg*dt); }
+  if(!state.firing) state.streamHeat=Math.max(0,state.streamHeat-dt*4);
   tryHit(dt);
+  // fx timers
+  for(const k in state.fx) if(state.fx[k]>0) state.fx[k]=Math.max(0,state.fx[k]-dt);
+  if(state.comboT>0){ state.comboT-=dt; if(state.comboT<=0)state.combo=0; }
 
-  // difficulty ramps with time
-  const ramp=1+state.t/45;
-  state.spawnGap=Math.max(0.42,1.15/ramp);
-  // arm the boss after enough kills
-  if(!state.bossArmed && state.kills>=22){ state.bossArmed=true; toast='⚠ BIG ONE INCOMING — THE MASTER CLOG'; toastT=3; setTimeout2(spawnBoss,2.2); }
-
-  if(!state.boss && state.bossArmed===false){
-    state.spawnT-=dt;
-    if(state.spawnT<=0){ state.spawnT=state.spawnGap; spawnClog(); if(Math.random()<0.25*ramp) spawnClog(); }
-  } else if(!state.boss && state.bossArmed){ /* waiting for boss spawn via timer */ }
-
-  // move clogs toward lens
-  for(const o of state.clogs){ if(o.dead)continue;
-    o.z-=o.sp*dt; o.a+=o.spin*dt*0.3; o.flash=Math.max(0,o.flash-dt*5);
-    if(o.z<=0.04){ // reached the camera lens → splat + backup
-      o.dead=true; splatLens(o); state.backup=Math.min(100,state.backup+CLOGS[o.k].dmg);
-      state.shake=Math.max(state.shake,8); state.flash=Math.max(state.flash,0.4); sfx('hit');
-      if(state.backup>=100){ setEnd('LOSE'); }
+  // wave spawning (boss waves handled separately)
+  if(!state.boss && state.wave!==BOSS_WAVE){
+    if(state.toSpawn>0){ state.spawnT-=dt; if(state.spawnT<=0){ state.spawnT=state.spawnGap; spawnClog(); state.toSpawn--; } }
+    else if(state.clogs.length===0){ // wave cleared
+      if(state.betweenWaves<=0){ state.betweenWaves=0.01; setTimeout2(()=>{ nextWave(); state.betweenWaves=0; }, 1.6);
+        toast='✅ SECTION CLEAR!'; toastT=1.6; sfx('clear'); state.score+=state.wave*100; }
     }
   }
-  state.clogs=state.clogs.filter(o=>!o.dead);
+  // power-up drops
+  state.powT-=dt; if(state.powT<=0 && !state.boss){ state.powT=rand(11,17); spawnPow(); }
 
-  // boss update
-  if(state.boss){ const b=state.boss; b.z=Math.max(0.45,b.z-b.sp*dt); b.flash=Math.max(0,b.flash-dt*4);
-    for(const bl of b.blobs) bl.a+=bl.sp*dt;
-    // boss slowly raises backup; you must out-damage it
-    state.backup=Math.min(100,state.backup+dt*2.4);
-    if(state.backup>=100) setEnd('LOSE');
+  const slow = state.fx.freeze>0?0.35:1;
+  // move clogs
+  for(const o of state.clogs){ if(o.dead)continue;
+    o.z-=o.sp*dt*slow; o.flash=Math.max(0,o.flash-dt*5);
+    const mv=CLOGS[o.k].move;
+    if(mv==='spin') o.a+=o.spin*dt*0.5; else if(mv==='zig'){ o.a0+=dt*3; o.a+=Math.sin(o.a0)*dt*0.8; } else o.a+=o.spin*dt*0.2;
+    if(o.z<=0.04){ o.dead=true; splatLens(o); state.backup=Math.min(100,state.backup+CLOGS[o.k].dmg*(o.tier?1:0.5));
+      state.shake=Math.max(state.shake,7); state.flash=Math.max(state.flash,0.35); state.combo=0; sfx('hit');
+      if(state.backup>=100) setEnd('LOSE'); }
   }
+  state.clogs=state.clogs.filter(o=>!o.dead);
+  // power-ups drift (missed if they reach lens)
+  for(const p of state.pows){ if(p.dead)continue; p.z-=0.085*dt*slow; p.a+=p.spin*dt*0.3; if(p.z<=0.05)p.dead=true; }
+  state.pows=state.pows.filter(p=>!p.dead);
 
-  // particles
-  for(let i=state.parts.length-1;i>=0;i--){ const p=state.parts[i];
-    p.x+=p.vx*dt*60; p.y+=p.vy*dt*60; p.vy+=p.g*dt*60; p.life-=dt; if(p.life<=0)state.parts.splice(i,1); }
-  // lens splats fade
+  if(state.boss){ const b=state.boss; b.z=Math.max(0.45,b.z-b.sp*dt*slow); b.flash=Math.max(0,b.flash-dt*4);
+    for(const bl of b.blobs) bl.a+=bl.sp*dt; state.backup=Math.min(100,state.backup+dt*2.2);
+    if(state.backup>=100) setEnd('LOSE'); }
+
+  // warning pulse if any clog is near the lens
+  let near=0; for(const o of state.clogs) if(o.z<0.2) near=Math.max(near,1-o.z/0.2);
+  state.warnPulse=near;
+
+  for(let i=state.parts.length-1;i>=0;i--){ const p=state.parts[i]; p.x+=p.vx*dt*60; p.y+=p.vy*dt*60; p.vy+=p.g*dt*60; p.life-=dt; if(p.life<=0)state.parts.splice(i,1); }
   for(let i=state.splats.length-1;i>=0;i--){ const s=state.splats[i]; s.life-=dt; if(s.life<=0)state.splats.splice(i,1); }
-
-  state.backup=Math.max(0,state.backup-dt*1.1);  // slow natural recovery
+  state.backup=Math.max(0,state.backup-dt*1.0);
   if(state.shake>0)state.shake=Math.max(0,state.shake-dt*22);
   if(state.flash>0)state.flash=Math.max(0,state.flash-dt*1.6);
   if(toastT>0){ toastT-=dt; if(toastT<=0)toast=null; }
 }
-// tiny scheduler (so we don't need real timers tied to frames)
-let _sched=[];
 function setTimeout2(fn,sec){ _sched.push({fn,t:sec}); }
 function tickSched(dt){ for(let i=_sched.length-1;i>=0;i--){ _sched[i].t-=dt; if(_sched[i].t<=0){ const f=_sched[i].fn; _sched.splice(i,1); f(); } } }
 
-/* ---------- particles / juice ---------- */
-function burst(x,y,c1,c2,n){ for(let i=0;i<n;i++){ const a=rand(0,7),s=rand(1,5);
-  state.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1,g:0.12,life:rand(.4,.9),size:rand(2,6),col:Math.random()<.5?c1:c2}); } }
+/* ---------- particles ---------- */
+function burst(x,y,c1,c2,n){ for(let i=0;i<n;i++){ const a=rand(0,7),s=rand(1,5.5);
+  state.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1,g:0.12,life:rand(.4,.95),size:rand(2,6),col:Math.random()<.5?c1:c2}); } }
 function sprayAt(x,y,c,n){ for(let i=0;i<n;i++){ const a=rand(-2.4,-0.7),s=rand(1,3);
   state.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,g:0.18,life:rand(.2,.5),size:rand(1,3),col:c}); } }
-function splatLens(o){ const c=CLOGS[o.k]; const s=clogScreen(o);
-  state.splats.push({x:s.x,y:s.y,r:rand(40,90),col:c.col,life:2.2,max:2.2}); burst(s.x,s.y,c.col,c.col2,24); }
+function splatLens(o){ const c=CLOGS[o.k], s=scrn(o);
+  state.splats.push({x:s.x,y:s.y,r:rand(40,90)*(o.tier?1:0.6),col:c.col,life:2.2,max:2.2}); burst(s.x,s.y,c.col,c.col2,24); }
 
 /* ---------- render ---------- */
 function render(){
   ctx.setTransform(DPR,0,0,DPR,0,0);
   let sx=0,sy=0; if(state.shake>0.2){ sx=(Math.random()-.5)*state.shake; sy=(Math.random()-.5)*state.shake; }
   ctx.save(); ctx.translate(sx,sy);
-
   drawTunnel();
-  // sort clogs far→near so near ones draw on top
   const arr=state.clogs.slice().sort((a,b)=>b.z-a.z);
   for(const o of arr) drawClog(o);
+  for(const p of state.pows.slice().sort((a,b)=>b.z-a.z)) drawPow(p);
   if(state.boss) drawBoss();
-  // water stream + spray
   if(state.firing && state.psi>0) drawStream();
-  for(const p of state.parts){ ctx.globalAlpha=Math.max(0,Math.min(1,p.life*2)); ctx.fillStyle=p.col;
-    ctx.fillRect(p.x-p.size/2,p.y-p.size/2,p.size,p.size); }
+  for(const p of state.parts){ ctx.globalAlpha=Math.max(0,Math.min(1,p.life*2)); ctx.fillStyle=p.col; ctx.fillRect(p.x-p.size/2,p.y-p.size/2,p.size,p.size); }
   ctx.globalAlpha=1;
-  // lens splats (gunk stuck on the camera)
-  for(const s of state.splats){ ctx.globalAlpha=Math.min(0.85,s.life/s.max); ctx.fillStyle=s.col;
-    blob(s.x,s.y,s.r); } ctx.globalAlpha=1;
-
+  for(const s of state.splats){ ctx.globalAlpha=Math.min(0.85,s.life/s.max); ctx.fillStyle=s.col; blob(s.x,s.y,s.r); } ctx.globalAlpha=1;
   ctx.restore();
-
   drawLensVignette();
+  if(state.warnPulse>0.05){ const a=state.warnPulse*0.4*(0.6+0.4*Math.sin(state.t*18)); ctx.strokeStyle='rgba(255,60,60,'+a.toFixed(3)+')'; ctx.lineWidth=14; ctx.strokeRect(7,7,W-14,H-14); }
   if(state.flash>0){ ctx.fillStyle='rgba(255,60,60,'+(state.flash*0.5).toFixed(3)+')'; ctx.fillRect(0,0,W,H); }
-  drawCrosshair();
-  drawHUD();
+  drawCrosshair(); drawHUD();
 }
 function drawTunnel(){
-  // dark wet pipe: concentric rings receding to the vanishing point
   ctx.fillStyle='#070c12'; ctx.fillRect(0,0,W,H);
-  const rings=16;
-  for(let i=rings;i>=1;i--){
-    const z=(i+state.ringScroll)/rings;          // 0..1
-    const s=proj(z); const rr=pipeR*s*1.02;
-    const lit=0.5+0.5*Math.sin(z*Math.PI);        // mid rings brighter
-    const g=Math.floor(20+lit*46);
-    ctx.strokeStyle=`rgb(${g-6},${g+8},${g})`;
-    ctx.lineWidth=Math.max(1,5*s);
+  const tint = state.fx.freeze>0 ? 1 : 0;
+  for(let i=16;i>=1;i--){ const z=(i+state.ringScroll)/16, s=proj(z), rr=pipeR*s*1.02, lit=0.5+0.5*Math.sin(z*Math.PI), g=Math.floor(20+lit*46);
+    ctx.strokeStyle = tint? `rgb(${g-2},${g+12},${g+24})` : `rgb(${g-6},${g+8},${g})`; ctx.lineWidth=Math.max(1,5*s);
     ctx.beginPath(); ctx.ellipse(CX,CY,rr,rr*0.96,0,0,7); ctx.stroke();
-    // wet highlight streak on the pipe wall
-    if(i%2===0){ ctx.strokeStyle=`rgba(110,150,170,${0.05+lit*0.06})`; ctx.lineWidth=Math.max(1,2*s);
-      ctx.beginPath(); ctx.ellipse(CX,CY,rr*0.98,rr*0.94,0,0.6,2.2); ctx.stroke(); }
-  }
-  // deep dark center (where new gunk crawls from)
-  const grd=ctx.createRadialGradient(CX,CY,2,CX,CY,pipeR*0.5);
-  grd.addColorStop(0,'#020407'); grd.addColorStop(1,'rgba(2,6,10,0)');
+    if(i%2===0){ ctx.strokeStyle=`rgba(110,150,170,${0.05+lit*0.06})`; ctx.lineWidth=Math.max(1,2*s); ctx.beginPath(); ctx.ellipse(CX,CY,rr*0.98,rr*0.94,0,0.6,2.2); ctx.stroke(); } }
+  const grd=ctx.createRadialGradient(CX,CY,2,CX,CY,pipeR*0.5); grd.addColorStop(0,'#020407'); grd.addColorStop(1,'rgba(2,6,10,0)');
   ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(CX,CY,pipeR*0.5,0,7); ctx.fill();
 }
-function blob(x,y,r){ ctx.beginPath();
-  for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; const rr=r*(0.78+0.22*Math.sin(i*2.7+x));
-    const px=x+Math.cos(a)*rr, py=y+Math.sin(a)*rr; i?ctx.lineTo(px,py):ctx.moveTo(px,py); }
-  ctx.closePath(); ctx.fill(); }
-function drawClog(o){ const c=clogScreen(o), d=CLOGS[o.k]; const sz=c.size;
-  // shadow on pipe
+function blob(x,y,r){ ctx.beginPath(); for(let i=0;i<8;i++){ const a=i/8*Math.PI*2, rr=r*(0.78+0.22*Math.sin(i*2.7+x)); const px=x+Math.cos(a)*rr,py=y+Math.sin(a)*rr; i?ctx.lineTo(px,py):ctx.moveTo(px,py); } ctx.closePath(); ctx.fill(); }
+function drawClog(o){ const c=scrn(o), d=CLOGS[o.k], sz=c.size;
   ctx.fillStyle='rgba(0,0,0,.3)'; blob(c.x,c.y+sz*0.18,sz*0.95);
-  // body
   ctx.fillStyle=o.flash>0?'#fff':d.col; blob(c.x,c.y,sz);
   ctx.fillStyle=o.flash>0?'#fff':d.col2; blob(c.x-sz*0.12,c.y+sz*0.1,sz*0.6);
-  // googly eyes so it reads as a "monster" (and is fun)
-  if(sz>14){ const e=sz*0.22;
+  if(sz>12){ const e=sz*0.22;
     for(const dx of [-1,1]){ ctx.fillStyle='#fff'; ctx.beginPath();ctx.arc(c.x+dx*e,c.y-e*0.5,e*0.6,0,7);ctx.fill();
       ctx.fillStyle='#111'; ctx.beginPath();ctx.arc(c.x+dx*e+Math.cos(state.t*3)*e*0.15,c.y-e*0.5,e*0.3,0,7);ctx.fill(); }
-    // angry mouth
-    ctx.strokeStyle='#3a1010'; ctx.lineWidth=Math.max(1,sz*0.08); ctx.beginPath();
-    ctx.arc(c.x,c.y+e*0.7,e*0.7,0.15*Math.PI,0.85*Math.PI); ctx.stroke();
-  }
-  // hp pip when damaged
-  if(o.hp<o.maxhp){ const w=sz*1.4,h=4; ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(c.x-w/2,c.y-sz-9,w,h);
-    ctx.fillStyle='#3dff9e';ctx.fillRect(c.x-w/2,c.y-sz-9,w*(o.hp/o.maxhp),h); }
+    ctx.strokeStyle='#3a1010'; ctx.lineWidth=Math.max(1,sz*0.08); ctx.beginPath(); ctx.arc(c.x,c.y+e*0.7,e*0.7,0.15*Math.PI,0.85*Math.PI); ctx.stroke(); }
+  if(o.hp<o.maxhp){ const w=sz*1.4,h=4; ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(c.x-w/2,c.y-sz-9,w,h); ctx.fillStyle='#3dff9e';ctx.fillRect(c.x-w/2,c.y-sz-9,w*(o.hp/o.maxhp),h); }
 }
-function drawBoss(){ const b=clogScreen(state.boss); const sz=b.size;
+function drawPow(p){ const c=scrn(p), P=POWS[p.k], sz=c.size, bob=Math.sin(state.t*4+p.bob)*4;
+  ctx.save(); ctx.translate(c.x,c.y+bob);
+  ctx.shadowColor=P.col; ctx.shadowBlur=16; ctx.strokeStyle=P.col; ctx.lineWidth=3; ctx.fillStyle='rgba(10,20,34,.8)';
+  ctx.beginPath();ctx.arc(0,0,sz,0,7);ctx.fill();ctx.stroke(); ctx.shadowBlur=0;
+  ctx.fillStyle='#fff'; ctx.font=Math.round(sz*1.1)+'px serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(P.ic,0,1);
+  ctx.restore(); ctx.textBaseline='alphabetic';
+}
+function drawBoss(){ const b=scrn(state.boss), sz=b.size;
   ctx.fillStyle='rgba(0,0,0,.4)'; blob(b.x,b.y+sz*0.2,sz*1.05);
-  // orbiting blobs
-  for(const bl of state.boss.blobs){ const rr=bl.r*pipeR*b.s; const x=CX+Math.cos(bl.a)*rr,y=CY+Math.sin(bl.a)*rr;
-    ctx.fillStyle='#5a6a2a'; blob(x,y,sz*0.28); }
+  for(const bl of state.boss.blobs){ const rr=bl.r*pipeR*b.s, x=CX+Math.cos(bl.a)*rr,y=CY+Math.sin(bl.a)*rr; ctx.fillStyle='#5a6a2a'; blob(x,y,sz*0.28); }
   ctx.fillStyle=state.boss.flash>0?'#fff':'#6a7a30'; blob(b.x,b.y,sz);
   ctx.fillStyle=state.boss.flash>0?'#fff':'#d9c24a'; blob(b.x-sz*0.1,b.y+sz*0.08,sz*0.62);
-  // big angry face
-  const e=sz*0.2;
-  for(const dx of [-1,1]){ ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(b.x+dx*e,b.y-e*0.6,e*0.55,0,7);ctx.fill();
-    ctx.fillStyle='#c00';ctx.beginPath();ctx.arc(b.x+dx*e,b.y-e*0.6,e*0.28,0,7);ctx.fill(); }
+  const e=sz*0.2; for(const dx of [-1,1]){ ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(b.x+dx*e,b.y-e*0.6,e*0.55,0,7);ctx.fill(); ctx.fillStyle='#c00';ctx.beginPath();ctx.arc(b.x+dx*e,b.y-e*0.6,e*0.28,0,7);ctx.fill(); }
   ctx.strokeStyle='#3a1010';ctx.lineWidth=sz*0.06;ctx.beginPath();ctx.arc(b.x,b.y+e,e*1.1,0.1*Math.PI,0.9*Math.PI);ctx.stroke();
-  // boss hp bar (top)
-  const w=W*0.6,h=14,x=CX-w/2,y=24; ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(x-2,y-2,w+4,h+4);
-  ctx.fillStyle='#ff4d6d';ctx.fillRect(x,y,w*(state.boss.hp/state.boss.maxhp),h);
-  ctx.fillStyle='#fff';ctx.font='10px "Press Start 2P"';ctx.textAlign='center';ctx.fillText('THE MASTER CLOG',CX,y+h+16);
-  ctx.textAlign='left';
+  const w=W*0.6,h=14,x=CX-w/2,y=24; ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(x-2,y-2,w+4,h+4); ctx.fillStyle='#ff4d6d';ctx.fillRect(x,y,w*(state.boss.hp/state.boss.maxhp),h);
+  ctx.fillStyle='#fff';ctx.font='10px "Press Start 2P"';ctx.textAlign='center';ctx.fillText('THE MASTER CLOG',CX,y+h+16); ctx.textAlign='left';
 }
-function drawStream(){
-  const nx=CX, ny=H+10;                  // nozzle just off-bottom-center
-  const tx=state.aimX, ty=state.aimY;
-  const heat=0.6+0.4*Math.sin(state.t*40);
-  // layered translucent water
-  for(let layer=0;layer<3;layer++){ const wdt=(14-layer*4)*(1+heat*0.2);
-    ctx.strokeStyle=['rgba(180,230,255,.25)','rgba(120,200,255,.5)','rgba(230,250,255,.85)'][layer];
-    ctx.lineWidth=wdt; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(nx,ny);
-    const mx=(nx+tx)/2+Math.sin(state.t*30+layer)*8, my=(ny+ty)/2;
-    ctx.quadraticCurveTo(mx,my,tx,ty); ctx.stroke(); }
-  // impact spray ring
-  ctx.fillStyle='rgba(220,245,255,.5)'; ctx.beginPath();ctx.arc(tx,ty,8+heat*5,0,7);ctx.fill();
+function drawStream(){ const nx=CX, ny=H+10, tx=state.aimX, ty=state.aimY, heat=0.6+0.4*Math.sin(state.t*40);
+  const base = state.fx.spread>0 ? ['rgba(178,107,255,.25)','rgba(150,90,255,.5)','rgba(220,200,255,.85)'] : ['rgba(180,230,255,.25)','rgba(120,200,255,.5)','rgba(230,250,255,.85)'];
+  for(let l=0;l<3;l++){ ctx.strokeStyle=base[l]; ctx.lineWidth=(14-l*4)*(1+heat*0.2); ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(nx,ny);
+    const mx=(nx+tx)/2+Math.sin(state.t*30+l)*8, my=(ny+ty)/2; ctx.quadraticCurveTo(mx,my,tx,ty); ctx.stroke(); }
+  ctx.fillStyle='rgba(220,245,255,.5)'; ctx.beginPath();ctx.arc(tx,ty,(state.fx.spread>0?16:8)+heat*5,0,7);ctx.fill();
 }
-function drawLensVignette(){
-  // circular drain-camera framing
-  const grd=ctx.createRadialGradient(CX,CY,pipeR*0.7,CX,CY,Math.max(W,H)*0.62);
-  grd.addColorStop(0,'rgba(0,0,0,0)'); grd.addColorStop(1,'rgba(0,0,0,0.92)');
-  ctx.fillStyle=grd; ctx.fillRect(0,0,W,H);
-  // lens ring
+function drawLensVignette(){ const grd=ctx.createRadialGradient(CX,CY,pipeR*0.7,CX,CY,Math.max(W,H)*0.62);
+  grd.addColorStop(0,'rgba(0,0,0,0)'); grd.addColorStop(1,'rgba(0,0,0,0.92)'); ctx.fillStyle=grd; ctx.fillRect(0,0,W,H);
   ctx.strokeStyle='rgba(54,224,255,.25)'; ctx.lineWidth=3; ctx.beginPath();ctx.arc(CX,CY,pipeR*1.02,0,7);ctx.stroke();
-  // REC indicator + scanline feel
-  ctx.fillStyle=(Math.sin(state.t*4)>0)?'#ff4d6d':'rgba(255,77,109,.3)';
-  ctx.beginPath();ctx.arc(28,30,6,0,7);ctx.fill();
-  ctx.fillStyle='#dff';ctx.font='11px "Share Tech Mono"';ctx.textAlign='left';ctx.fillText('REC',40,34);
-  ctx.fillText((state.depth|0)+' FT',40,50);
+  ctx.fillStyle=(Math.sin(state.t*4)>0)?'#ff4d6d':'rgba(255,77,109,.3)'; ctx.beginPath();ctx.arc(28,30,6,0,7);ctx.fill();
+  ctx.fillStyle='#dff';ctx.font='11px "Share Tech Mono"';ctx.textAlign='left';ctx.fillText('REC',40,34); ctx.fillText((state.depth|0)+' FT',40,50);
 }
-function drawCrosshair(){
-  const x=state.aimX,y=state.aimY;
-  ctx.strokeStyle=state.psi>0?'#36e0ff':'#ff4d6d'; ctx.lineWidth=2;
-  ctx.beginPath();ctx.arc(x,y,13,0,7);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(x-20,y);ctx.lineTo(x-6,y);ctx.moveTo(x+6,y);ctx.lineTo(x+20,y);
-  ctx.moveTo(x,y-20);ctx.lineTo(x,y-6);ctx.moveTo(x,y+6);ctx.lineTo(x,y+20);ctx.stroke();
-  ctx.fillStyle=state.psi>0?'#36e0ff':'#ff4d6d';ctx.beginPath();ctx.arc(x,y,2,0,7);ctx.fill();
+function drawCrosshair(){ const x=state.aimX,y=state.aimY, col=state.psi>0?(state.fx.spread>0?'#b26bff':'#36e0ff'):'#ff4d6d';
+  ctx.strokeStyle=col; ctx.lineWidth=2; ctx.beginPath();ctx.arc(x,y,13,0,7);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x-20,y);ctx.lineTo(x-6,y);ctx.moveTo(x+6,y);ctx.lineTo(x+20,y);ctx.moveTo(x,y-20);ctx.lineTo(x,y-6);ctx.moveTo(x,y+6);ctx.lineTo(x,y+20);ctx.stroke();
+  ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,2,0,7);ctx.fill();
 }
-function drawHUD(){
-  ctx.textAlign='left';
-  // PSI gauge (bottom-left)
-  gauge(20,H-58,160,16,state.psi/100,'PSI', state.psi>25?'#36e0ff':'#ff4d6d');
-  // BACKUP gauge (bottom-right) — lose meter
-  gauge(W-180,H-58,160,16,state.backup/100,'BACKUP', state.backup>70?'#ff4d6d':(state.backup>40?'#ffd23f':'#3dff9e'),true);
-  // score (top-right)
-  ctx.fillStyle='#ffd23f';ctx.font='14px "Press Start 2P"';ctx.textAlign='right';
-  ctx.fillText(String(state.score).padStart(6,'0'),W-20,38);
-  ctx.fillStyle='#8fb2c9';ctx.font='9px "Press Start 2P"';ctx.fillText('CLOGS BLASTED '+state.kills,W-20,56);
-  ctx.textAlign='left';
-  // toast
-  if(toast){ ctx.fillStyle='#ff4d6d';ctx.font='12px "Press Start 2P"';ctx.textAlign='center';
-    ctx.fillText(toast,CX,H*0.26); ctx.textAlign='left'; }
-  // branding strip
-  ctx.fillStyle='rgba(54,224,255,.5)';ctx.font='10px "Share Tech Mono"';ctx.textAlign='center';
-  ctx.fillText('JOHNSON BROS HYDRO-JET™',CX,H-16); ctx.textAlign='left';
+function drawHUD(){ ctx.textAlign='left';
+  gauge(20,H-58,160,16,state.psi/100,'PSI'+(state.fx.turbo>0?' ⚡':''), state.psi>25?(state.fx.turbo>0?'#ffd23f':'#36e0ff'):'#ff4d6d');
+  gauge(W-180,H-58,160,16,state.backup/100,'BACKUP', state.backup>70?'#ff4d6d':(state.backup>40?'#ffd23f':'#3dff9e'));
+  ctx.fillStyle='#ffd23f';ctx.font='14px "Press Start 2P"';ctx.textAlign='right'; ctx.fillText(String(state.score).padStart(6,'0'),W-20,38);
+  ctx.fillStyle='#8fb2c9';ctx.font='9px "Press Start 2P"';ctx.fillText('HI '+String(Math.max(HI,state.score)).padStart(6,'0'),W-20,56);
+  // wave (top center)
+  ctx.fillStyle='#36e0ff';ctx.font='11px "Press Start 2P"';ctx.textAlign='center';
+  ctx.fillText(state.wave===BOSS_WAVE?'BOSS':'WAVE '+state.wave,CX,30);
+  // active power-up chips
+  let cxp=CX-90; const chips=[]; if(state.fx.turbo>0)chips.push(['⚡',state.fx.turbo]); if(state.fx.spread>0)chips.push(['✷',state.fx.spread]); if(state.fx.freeze>0)chips.push(['❄',state.fx.freeze]);
+  ctx.font='12px "Share Tech Mono"'; for(const ch of chips){ ctx.fillStyle='#b26bff'; ctx.fillText(ch[0]+ch[1].toFixed(0),cxp,52); cxp+=44; }
+  // combo
+  if(state.combo>=2){ ctx.fillStyle='#ff9a3d';ctx.font=(14+Math.min(state.combo,8))+'px "Press Start 2P"';ctx.textAlign='center';
+    ctx.fillText('COMBO x'+state.combo,CX,H*0.34); }
+  if(toast){ ctx.fillStyle='#ffd23f';ctx.font='13px "Press Start 2P"';ctx.textAlign='center'; ctx.fillText(toast,CX,H*0.24); }
+  ctx.fillStyle='rgba(54,224,255,.5)';ctx.font='10px "Share Tech Mono"';ctx.textAlign='center'; ctx.fillText('JOHNSON BROS HYDRO-JET™',CX,H-16); ctx.textAlign='left';
 }
-function gauge(x,y,w,h,fr,label,col,rev){ fr=Math.max(0,Math.min(1,fr));
-  ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(x-2,y-2,w+4,h+4);
-  ctx.fillStyle='#0a1018';ctx.fillRect(x,y,w,h);
-  ctx.fillStyle=col; const fw=w*fr; ctx.fillRect(rev?x:x,y,fw,h);
-  ctx.fillStyle='#dff';ctx.font='9px "Press Start 2P"';ctx.fillText(label,x,y-6);
-}
-let toast=null,toastT=0;
+function gauge(x,y,w,h,fr,label,col){ fr=Math.max(0,Math.min(1,fr)); ctx.fillStyle='rgba(0,0,0,.55)';ctx.fillRect(x-2,y-2,w+4,h+4);
+  ctx.fillStyle='#0a1018';ctx.fillRect(x,y,w,h); ctx.fillStyle=col; ctx.fillRect(x,y,w*fr,h);
+  ctx.fillStyle='#dff';ctx.font='9px "Press Start 2P"';ctx.textAlign='left';ctx.fillText(label,x,y-6); }
 
-/* ---------- audio (oscillators) ---------- */
+/* ---------- audio ---------- */
 let actx=null;
 function ensureAudio(){ if(!actx)actx=new (window.AudioContext||window.webkitAudioContext)(); }
-function sfx(type){ ensureAudio(); const ac=actx,now=ac.currentTime,o=ac.createOscillator(),g=ac.createGain();
-  o.connect(g);g.connect(ac.destination);g.gain.value=.12;
+function sfx(type){ ensureAudio(); const ac=actx,now=ac.currentTime,o=ac.createOscillator(),g=ac.createGain(); o.connect(g);g.connect(ac.destination);g.gain.value=.12;
   switch(type){
-    case 'splat':o.type='sawtooth';o.frequency.setValueAtTime(420,now);o.frequency.exponentialRampToValueAtTime(80,now+.18);
-      g.gain.exponentialRampToValueAtTime(.0001,now+.2);o.start(now);o.stop(now+.2);break;
-    case 'hit':o.type='square';o.frequency.setValueAtTime(160,now);o.frequency.exponentialRampToValueAtTime(50,now+.3);
-      g.gain.value=.18;g.gain.exponentialRampToValueAtTime(.0001,now+.32);o.start(now);o.stop(now+.32);break;
-    case 'boss':o.type='square';[262,330,392,523,659].forEach((f,i)=>o.frequency.setValueAtTime(f,now+i*.12));
-      g.gain.value=.14;g.gain.exponentialRampToValueAtTime(.0001,now+.75);o.start(now);o.stop(now+.75);break;
-    case 'lose':o.type='sawtooth';[330,247,196,131].forEach((f,i)=>o.frequency.setValueAtTime(f,now+i*.18));
-      g.gain.value=.14;g.gain.exponentialRampToValueAtTime(.0001,now+.8);o.start(now);o.stop(now+.8);break;
+    case 'splat':o.type='sawtooth';o.frequency.setValueAtTime(420,now);o.frequency.exponentialRampToValueAtTime(80,now+.18);g.gain.exponentialRampToValueAtTime(.0001,now+.2);o.start(now);o.stop(now+.2);break;
+    case 'hit':o.type='square';o.frequency.setValueAtTime(160,now);o.frequency.exponentialRampToValueAtTime(50,now+.3);g.gain.value=.18;g.gain.exponentialRampToValueAtTime(.0001,now+.32);o.start(now);o.stop(now+.32);break;
+    case 'pow':o.type='square';[660,990,1320].forEach((f,i)=>o.frequency.setValueAtTime(f,now+i*.05));g.gain.exponentialRampToValueAtTime(.0001,now+.22);o.start(now);o.stop(now+.22);break;
+    case 'clear':o.type='triangle';[523,659,784,1047].forEach((f,i)=>o.frequency.setValueAtTime(f,now+i*.08));g.gain.exponentialRampToValueAtTime(.0001,now+.4);o.start(now);o.stop(now+.4);break;
+    case 'boss':o.type='square';[262,330,392,523,659].forEach((f,i)=>o.frequency.setValueAtTime(f,now+i*.12));g.gain.value=.14;g.gain.exponentialRampToValueAtTime(.0001,now+.75);o.start(now);o.stop(now+.75);break;
+    case 'lose':o.type='sawtooth';[330,247,196,131].forEach((f,i)=>o.frequency.setValueAtTime(f,now+i*.18));g.gain.value=.14;g.gain.exponentialRampToValueAtTime(.0001,now+.8);o.start(now);o.stop(now+.8);break;
     default:o.type='square';o.frequency.value=440;g.gain.exponentialRampToValueAtTime(.0001,now+.1);o.start(now);o.stop(now+.1);
   }
 }
 let jetNode=null,jetGain=null;
-function jetOn(){ ensureAudio(); if(jetNode)return; jetNode=actx.createOscillator(); jetGain=actx.createGain();
-  const noise=actx.createOscillator(); noise.type='sawtooth'; noise.frequency.value=80;
-  jetNode.type='square'; jetNode.frequency.value=130; jetGain.gain.value=0.05;
-  jetNode.connect(jetGain); jetGain.connect(actx.destination); jetNode.start(); }
+function jetOn(){ ensureAudio(); if(jetNode)return; jetNode=actx.createOscillator(); jetGain=actx.createGain(); jetNode.type='square'; jetNode.frequency.value=130; jetGain.gain.value=0.05; jetNode.connect(jetGain); jetGain.connect(actx.destination); jetNode.start(); }
 function jetOff(){ if(jetNode){ try{jetNode.stop();}catch(e){} jetNode=null; jetGain=null; } }
 
 /* ---------- input ---------- */
-function setAim(e){ const r=cv.getBoundingClientRect(); const p=e.touches?e.touches[0]:e;
-  state.aimX=p.clientX-r.left; state.aimY=p.clientY-r.top; }
+function setAim(e){ const r=cv.getBoundingClientRect(); const p=e.touches?e.touches[0]:e; state.aimX=p.clientX-r.left; state.aimY=p.clientY-r.top; }
 cv.addEventListener('mousemove',e=>{ if(state) setAim(e); });
 cv.addEventListener('mousedown',e=>{ if(state&&state.phase==='PLAY'){ setAim(e); state.firing=true; jetOn(); ensureAudio(); } });
 window.addEventListener('mouseup',()=>{ if(state){ state.firing=false; jetOff(); } });
@@ -396,42 +368,35 @@ window.addEventListener('keydown',e=>{ if(e.code==='Space'&&state&&state.phase==
 window.addEventListener('keyup',e=>{ if(e.code==='Space'&&state){ state.firing=false; jetOff(); } });
 
 /* ---------- screens ---------- */
-function startGame(){ resize(); newGame(); _sched=[]; toast=null;
-  document.getElementById('boot').classList.add('hide'); document.getElementById('endScreen').classList.add('hide');
-  ensureAudio(); }
+function startGame(){ resize(); _sched=[]; toast=null; newGame();
+  document.getElementById('boot').classList.add('hide'); document.getElementById('endScreen').classList.add('hide'); ensureAudio(); }
 function setEnd(kind){ if(state.phase!=='PLAY')return; state.phase=kind; state.firing=false; jetOff();
+  const newHi = state.score>HI; if(newHi){ HI=state.score; localStorage.setItem('db_hi',HI); }
   if(kind==='LOSE') sfx('lose');
-  const es=document.getElementById('endScreen'); es.classList.remove('hide','win','lose');
-  es.classList.add(kind==='WIN'?'win':'lose');
+  const es=document.getElementById('endScreen'); es.classList.remove('hide','win','lose'); es.classList.add(kind==='WIN'?'win':'lose');
   document.getElementById('endTitle').textContent = kind==='WIN'?'DRAIN CLEARED!':'BACKED UP!';
   document.getElementById('endBody').innerHTML = kind==='WIN'
-    ? `You blasted <b>${state.kills}</b> clogs and crushed the Master Clog!<br>Score: <b>${state.score}</b>. That pipe is flowing like new.`
-    : `The drain backed up! You blasted <b>${state.kills}</b> clogs · Score <b>${state.score}</b>.<br>Some clogs are too tough for a DIY jetter…`;
+    ? `You reached <b>WAVE ${state.wave}</b>, blasted <b>${state.kills}</b> clogs and crushed the Master Clog!<br>Score: <b>${state.score}</b>.`
+    : `Backed up on <b>WAVE ${state.wave}</b> · <b>${state.kills}</b> clogs blasted · Score <b>${state.score}</b>.`;
+  document.getElementById('endHi').textContent = (newHi?'★ NEW HIGH SCORE ':'HI ')+String(HI).padStart(6,'0');
   document.getElementById('ctaBig').textContent = kind==='WIN'?'WANT THIS DONE FOR REAL?':'CLOGGED FOR REAL?';
 }
 document.getElementById('startBtn').onclick=startGame;
 document.getElementById('againBtn').onclick=startGame;
+document.getElementById('bootHi').textContent='HI '+String(HI).padStart(6,'0');
 
 /* ---------- loop ---------- */
 let lastT=0;
 function frame(ts){ if(!lastT)lastT=ts; let dt=(ts-lastT)/1000; lastT=ts; if(dt>0.05)dt=0.05;
-  try{
-    if(state&&state.phase==='PLAY'){ tickSched(dt); update(dt); }
-    if(state) render();
-  }catch(e){ showError(e); return; }
-  requestAnimationFrame(frame);
-}
-function showError(e){ let b=document.getElementById('eb'); if(!b){ b=document.createElement('div');b.id='eb';
-  b.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:99;background:#2a0010;color:#ff4d6d;font:12px monospace;padding:10px;white-space:pre-wrap;max-height:40vh;overflow:auto';document.body.appendChild(b);}
-  b.textContent='Drain Blasters error:\n'+(e&&e.stack?e.stack:e); }
+  try{ if(state&&state.phase==='PLAY'){ tickSched(dt); update(dt); } if(state) render(); }catch(e){ showError(e); return; }
+  requestAnimationFrame(frame); }
+function showError(e){ let b=document.getElementById('eb'); if(!b){ b=document.createElement('div');b.id='eb'; b.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:99;background:#2a0010;color:#ff4d6d;font:12px monospace;padding:10px;white-space:pre-wrap;max-height:40vh;overflow:auto';document.body.appendChild(b);} b.textContent='Drain Blasters error:\n'+(e&&e.stack?e.stack:e); }
 window.addEventListener('error',ev=>showError(ev.error||ev.message));
 resize(); requestAnimationFrame(frame);
 console.log('DRAIN BLASTERS '+BUILD+' ready');
-/* debug still-frame: ?still=N advances N seconds then freezes for screenshot */
-(function(){ try{ const m=(location.search||'').match(/still=(\d+)/); if(!m)return;
-  startGame(); const secs=+m[1]||3; let acc=0; while(acc<secs){ tickSched(0.05); update(0.05); acc+=0.05; }
-  state.aimX=CX-60; state.aimY=CY-40; state.firing=true; tryHit(0.05); render(); state.phase='STILL';
-  document.title='STILL · '+BUILD;
+/* debug still-frame */
+(function(){ try{ const m=(location.search||'').match(/still=(\d+)/); if(!m)return; startGame(); const secs=+m[1]||3; let acc=0; while(acc<secs){ tickSched(0.05); update(0.05); acc+=0.05; }
+  state.aimX=CX-60; state.aimY=CY-40; state.firing=true; tryHit(0.05); render(); state.phase='STILL'; document.title='STILL · '+BUILD;
 }catch(e){ showError(e); } })();
 </script>
 </body>
