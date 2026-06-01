@@ -6,161 +6,102 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Pipe Tycoon — Johnson Bros Plumbing</title>
 <style>
-/* ============================================================
-   PIPE TYCOON  —  Slice 1: playable core loop
-   (job spawn -> dispatch van -> drive -> work -> get paid)
-   Single self-contained file. Retro neon "JBP Arcade" theme.
-   ============================================================ */
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap');
-
 :root{
   --bg-void:#070912; --bg-panel:#0E1426; --bg-panel-2:#141C33; --bg-panel-3:#1B2342;
   --ink:#D7E3FF; --ink-dim:#7E8DB5; --ink-faint:#46527A;
   --cyan:#23E6FF; --yellow:#FFD23F; --green:#3DFF9E; --red:#FF4D6D;
   --purple:#B26BFF; --orange:#FF9A3D; --pink:#FF5FD2;
   --border:rgba(35,230,255,.22); --border-hot:rgba(35,230,255,.6);
-  --hud-h:56px; --rail-w:248px;
+  --hud-h:56px; --rail-w:250px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{width:100%;height:100%;overflow:hidden;background:var(--bg-void);color:var(--ink);
   font-family:'Share Tech Mono',monospace;touch-action:none;user-select:none;-webkit-user-select:none}
-
-#stage{position:fixed;inset:0;display:grid;grid-template-rows:var(--hud-h) 1fr;
-  grid-template-columns:var(--rail-w) 1fr;
-  grid-template-areas:"hud hud" "rail city";}
-#hud{grid-area:hud}#rail{grid-area:rail}#cityWrap{grid-area:city;position:relative}
-
-/* CRT scanlines */
+#stage{position:fixed;inset:0;display:grid;grid-template-rows:var(--hud-h) 1fr;grid-template-columns:var(--rail-w) 1fr;
+  grid-template-areas:"hud hud" "rail city"}
+#hud{grid-area:hud}#rail{grid-area:rail}#cityWrap{grid-area:city;position:relative;overflow:hidden}
 #stage::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:60;
-  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.06) 2px,rgba(0,0,0,.06) 4px)}
-
-/* ---------- HUD ---------- */
-#hud{display:flex;align-items:center;gap:12px;padding:0 14px;z-index:30;
-  background:linear-gradient(180deg,#0c1320,#0a0e16);border-bottom:1px solid var(--border);
-  box-shadow:0 2px 18px rgba(0,0,0,.6)}
-.brand{font-family:'Press Start 2P';font-size:11px;color:var(--cyan);text-shadow:0 0 10px rgba(35,230,255,.5);
-  letter-spacing:1px;white-space:nowrap;line-height:1.4}
-.brand small{display:block;font-size:6px;color:var(--yellow);letter-spacing:2px;margin-top:4px;text-shadow:0 0 6px var(--yellow)}
-.stats{display:flex;gap:9px;flex:1;overflow-x:auto;scrollbar-width:none}
-.stats::-webkit-scrollbar{display:none}
-.stat{display:flex;flex-direction:column;align-items:flex-start;padding:5px 11px;border:1px solid var(--border);
-  border-radius:3px;background:rgba(35,230,255,.03);min-width:70px}
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.05) 2px,rgba(0,0,0,.05) 4px)}
+#hud{display:flex;align-items:center;gap:11px;padding:0 13px;z-index:30;background:linear-gradient(180deg,#0c1320,#0a0e16);
+  border-bottom:1px solid var(--border);box-shadow:0 2px 18px rgba(0,0,0,.6)}
+.brand{font-family:'Press Start 2P';font-size:11px;color:var(--cyan);text-shadow:0 0 10px rgba(35,230,255,.5);letter-spacing:1px;line-height:1.4;white-space:nowrap}
+.brand small{display:block;font-size:6px;color:var(--yellow);letter-spacing:2px;margin-top:4px}
+.stats{display:flex;gap:8px;flex:1;overflow-x:auto;scrollbar-width:none}.stats::-webkit-scrollbar{display:none}
+.stat{display:flex;flex-direction:column;padding:5px 10px;border:1px solid var(--border);border-radius:3px;background:rgba(35,230,255,.03);min-width:66px}
 .stat .k{font-size:8px;color:var(--ink-dim);letter-spacing:1px;text-transform:uppercase}
-.stat .v{font-size:14px;margin-top:3px;white-space:nowrap;transition:color .5s}
+.stat .v{font-size:14px;margin-top:3px;white-space:nowrap;transition:color .4s}
 .stat.cash .v{color:var(--yellow);text-shadow:0 0 8px rgba(255,210,63,.4)}
-.stat.rep .v{color:var(--pink)}.stat.share .v{color:var(--cyan)}.stat.van .v{color:var(--green)}
-
-.time{display:flex;align-items:center;gap:5px}
-.tbtn{font-family:'Press Start 2P';font-size:9px;width:36px;height:32px;display:flex;align-items:center;justify-content:center;
-  background:transparent;border:2px solid var(--border);color:var(--ink-dim);border-radius:3px;cursor:pointer;transition:.15s}
-.tbtn:hover{border-color:var(--border-hot);color:var(--cyan)}
-.tbtn.on{border-color:var(--cyan);color:#001016;background:var(--cyan);box-shadow:0 0 14px rgba(35,230,255,.5)}
-
-/* ---------- left rail (job inbox + fleet) ---------- */
-#rail{z-index:20;background:linear-gradient(180deg,#0b111e,#0a0e18);border-right:1px solid var(--border);
-  display:flex;flex-direction:column;overflow:hidden}
-.rail-h{font-family:'Press Start 2P';font-size:9px;color:var(--cyan);letter-spacing:1px;padding:12px 12px 8px;
-  text-shadow:0 0 8px rgba(35,230,255,.4);display:flex;justify-content:space-between;align-items:center}
-.rail-h .cnt{color:var(--ink-dim);font-family:'Share Tech Mono';font-size:11px}
-#jobList{flex:1;overflow-y:auto;padding:0 10px 10px;scrollbar-width:thin}
-#jobList::-webkit-scrollbar{width:6px}#jobList::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
-.job{background:var(--bg-panel-2);border:1px solid var(--border);border-left:3px solid var(--ink-dim);
-  border-radius:4px;padding:8px 9px;margin-bottom:8px;cursor:pointer;transition:.12s;position:relative;overflow:hidden}
-.job:hover{border-color:var(--cyan);transform:translateX(2px)}
-.job.u-LOW{border-left-color:var(--ink-dim)}.job.u-MED{border-left-color:var(--cyan)}
-.job.u-HIGH{border-left-color:var(--orange)}.job.u-CRIT{border-left-color:var(--red)}
-.job .row1{display:flex;justify-content:space-between;align-items:center;gap:6px}
-.job .nm{font-size:12px;color:var(--ink);display:flex;align-items:center;gap:6px}
-.job .nm .ic{font-size:14px}
-.job .pay{font-size:13px;color:var(--yellow);font-weight:bold}
-.job .row2{display:flex;justify-content:space-between;align-items:center;margin-top:5px;font-size:10px;color:var(--ink-dim)}
-.job .utag{padding:1px 5px;border-radius:2px;font-size:8px;letter-spacing:.5px;border:1px solid currentColor}
-.job.u-MED .utag{color:var(--cyan)}.job.u-HIGH .utag{color:var(--orange)}.job.u-CRIT .utag{color:var(--red)}.job.u-LOW .utag{color:var(--ink-faint)}
-.job .timer{position:absolute;bottom:0;left:0;height:2px;background:var(--cyan);opacity:.6}
-.job .dist{font-size:9px;color:var(--ink-faint)}
-.rail-empty{color:var(--ink-faint);font-size:11px;text-align:center;padding:24px 12px;line-height:1.8}
-.fleet{border-top:1px solid var(--border);padding:10px 12px;background:rgba(61,255,158,.03)}
-.fleet .vrow{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink-dim);margin-top:4px}
-.fleet .vrow .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
-.fleet .vrow .dot.busy{background:var(--orange);box-shadow:0 0 6px var(--orange)}
-
-/* canvas */
-#city{display:block;width:100%;height:100%;cursor:grab;
-  background:radial-gradient(ellipse at 50% 28%, #16223e 0%, #0a0e1a 58%, #05060c 100%)}
-#city.dragging{cursor:grabbing}
-
-/* toasts */
-#toasts{position:fixed;top:calc(var(--hud-h) + 10px);right:12px;z-index:50;display:flex;flex-direction:column;gap:7px;max-width:300px}
-.toast{background:var(--bg-panel);border-left:3px solid var(--cyan);border-radius:4px;padding:8px 11px;font-size:12px;
-  box-shadow:0 6px 24px rgba(0,0,0,.5);animation:slidein .3s ease}
-.toast.good{border-left-color:var(--green)}.toast.bad{border-left-color:var(--red)}.toast.warn{border-left-color:var(--yellow)}
-@keyframes slidein{from{transform:translateX(40px);opacity:0}to{transform:translateX(0);opacity:1}}
-.fpop{position:fixed;z-index:55;font-family:'Press Start 2P';font-size:11px;pointer-events:none;
-  animation:floatup 1s ease-out forwards;text-shadow:0 0 8px currentColor}
-@keyframes floatup{from{transform:translateY(0);opacity:1}to{transform:translateY(-44px);opacity:0}}
-
-/* boot */
-#boot{position:fixed;inset:0;z-index:80;background:var(--bg-void);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:24px}
-#boot .logo{font-family:'Press Start 2P';font-size:clamp(20px,5vw,40px);color:var(--cyan);text-shadow:0 0 14px var(--cyan),0 0 40px rgba(35,230,255,.4);letter-spacing:2px}
-#boot .sub{font-family:'Press Start 2P';font-size:9px;color:var(--yellow);letter-spacing:3px;text-shadow:0 0 8px var(--yellow)}
-#boot .tip{color:var(--ink-dim);font-size:12px;max-width:460px;line-height:1.7}
-#boot .start{font-family:'Press Start 2P';font-size:12px;padding:15px 26px;border:2px solid var(--cyan);color:var(--cyan);background:transparent;border-radius:4px;cursor:pointer;letter-spacing:2px;animation:pulse 1.4s infinite}
-#boot .start:hover{background:var(--cyan);color:#001016;box-shadow:0 0 24px rgba(35,230,255,.6)}
-@keyframes pulse{50%{opacity:.6}}
-.blink{animation:blink 1.1s step-end infinite}@keyframes blink{50%{opacity:0}}
-
-@media(max-width:720px){
-  :root{--rail-w:180px}
-  .brand small{display:none}.stat{min-width:58px;padding:4px 7px}.stat .v{font-size:12px}
-}
-
-/* shop button in HUD */
+.stat.nw .v{color:var(--green)}.stat.rep .v{color:var(--pink)}.stat.combo .v{color:var(--orange)}
 .shopbtn{font-family:'Press Start 2P';font-size:9px;padding:9px 12px;border:2px solid var(--yellow);color:var(--yellow);
   border-radius:3px;cursor:pointer;white-space:nowrap;letter-spacing:1px;transition:.15s;text-shadow:0 0 6px rgba(255,210,63,.5)}
 .shopbtn:hover{background:var(--yellow);color:#1a1400;box-shadow:0 0 16px rgba(255,210,63,.6)}
-.shopbtn.cant{border-color:var(--ink-faint);color:var(--ink-faint);text-shadow:none}
-
-/* goal bar in rail */
+.time{display:flex;gap:5px}
+.tbtn{font-family:'Press Start 2P';font-size:9px;width:34px;height:32px;display:flex;align-items:center;justify-content:center;
+  background:transparent;border:2px solid var(--border);color:var(--ink-dim);border-radius:3px;cursor:pointer}
+.tbtn:hover{border-color:var(--border-hot);color:var(--cyan)}
+.tbtn.on{border-color:var(--cyan);color:#001016;background:var(--cyan);box-shadow:0 0 14px rgba(35,230,255,.5)}
+#rail{z-index:20;background:linear-gradient(180deg,#0b111e,#0a0e18);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
 #goalBox{padding:11px 12px;border-bottom:1px solid var(--border);background:rgba(178,107,255,.05)}
-.goal-top{display:flex;justify-content:space-between;font-size:10px;color:var(--ink-dim);letter-spacing:.5px}
-.goal-top span:last-child{color:var(--green);font-size:13px;text-shadow:0 0 8px rgba(61,255,158,.4)}
+.goal-top{display:flex;justify-content:space-between;font-size:10px;color:var(--ink-dim)}
+.goal-top b{color:var(--green);font-size:13px}
 .goal-bar{height:9px;background:#0a1020;border:1px solid var(--border);border-radius:5px;margin:6px 0 4px;overflow:hidden}
 .goal-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--cyan),var(--green));box-shadow:0 0 10px rgba(61,255,158,.6);transition:width .4s}
 .goal-sub{font-size:10px;color:var(--ink-faint)}
-
-/* SHOP modal */
+.rail-h{font-family:'Press Start 2P';font-size:9px;color:var(--cyan);letter-spacing:1px;padding:11px 12px 7px;display:flex;justify-content:space-between}
+.rail-h .cnt{color:var(--ink-dim);font-family:'Share Tech Mono';font-size:11px}
+#jobList{flex:1;overflow-y:auto;padding:0 10px 8px;scrollbar-width:thin}#jobList::-webkit-scrollbar{width:6px}#jobList::-webkit-scrollbar-thumb{background:var(--border)}
+.job{background:var(--bg-panel-2);border:1px solid var(--border);border-left:3px solid var(--ink-dim);border-radius:4px;padding:7px 9px;margin-bottom:7px;cursor:pointer;transition:.1s;position:relative;overflow:hidden}
+.job:hover{border-color:var(--cyan);transform:translateX(2px)}
+.job.u-MED{border-left-color:var(--cyan)}.job.u-HIGH{border-left-color:var(--orange)}.job.u-CRIT{border-left-color:var(--red)}
+.job.crit{animation:critpulse 1s infinite}@keyframes critpulse{50%{box-shadow:0 0 12px rgba(255,77,109,.5)}}
+.job .row1{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.job .nm{font-size:12px;display:flex;align-items:center;gap:6px}.job .nm .ic{font-size:14px}
+.job .pay{font-size:13px;color:var(--yellow);font-weight:bold}
+.job .row2{display:flex;justify-content:space-between;margin-top:4px;font-size:10px;color:var(--ink-dim)}
+.job .utag{padding:1px 5px;border-radius:2px;font-size:8px;border:1px solid currentColor}
+.job.u-MED .utag{color:var(--cyan)}.job.u-HIGH .utag{color:var(--orange)}.job.u-CRIT .utag{color:var(--red)}.job.u-LOW .utag{color:var(--ink-faint)}
+.job .pat{position:absolute;bottom:0;left:0;height:3px;transition:width .15s linear}
+.rail-empty{color:var(--ink-faint);font-size:11px;text-align:center;padding:22px 12px;line-height:1.8}
+.fleet{border-top:1px solid var(--border);padding:9px 12px;background:rgba(61,255,158,.03);max-height:128px;overflow-y:auto}
+.fleet .vrow{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink-dim);margin-top:4px}
+.fleet .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+.fleet .dot.busy{background:var(--orange);box-shadow:0 0 6px var(--orange)}
+#city{display:block;width:100%;height:100%;cursor:grab}#city.dragging{cursor:grabbing}
+#toasts{position:fixed;top:calc(var(--hud-h) + 10px);right:12px;z-index:50;display:flex;flex-direction:column;gap:7px;max-width:300px}
+.toast{background:var(--bg-panel);border-left:3px solid var(--cyan);border-radius:4px;padding:8px 11px;font-size:12px;box-shadow:0 6px 24px rgba(0,0,0,.5);animation:slidein .3s}
+.toast.good{border-left-color:var(--green)}.toast.bad{border-left-color:var(--red)}.toast.warn{border-left-color:var(--yellow)}
+@keyframes slidein{from{transform:translateX(40px);opacity:0}to{transform:translateX(0);opacity:1}}
+.fpop{position:fixed;z-index:55;font-family:'Press Start 2P';font-size:11px;pointer-events:none;animation:floatup 1s ease-out forwards;text-shadow:0 0 8px currentColor}
+@keyframes floatup{from{transform:translateY(0);opacity:1}to{transform:translateY(-46px);opacity:0}}
 #shopScrim,#endScrim{position:fixed;inset:0;z-index:90;background:rgba(3,5,12,.72);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;padding:18px}
 #shopScrim.show,#endScrim.show{display:flex}
-#shopPanel{width:min(440px,96vw);max-height:88vh;overflow:auto;background:linear-gradient(180deg,var(--bg-panel),var(--bg-panel-2));
-  border:1px solid var(--yellow);border-radius:8px;box-shadow:0 14px 60px rgba(0,0,0,.7),0 0 24px rgba(255,210,63,.15)}
-.shop-h{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border);
-  font-family:'Press Start 2P';font-size:11px;color:var(--yellow);position:sticky;top:0;background:var(--bg-panel);text-shadow:0 0 8px rgba(255,210,63,.4)}
+#shopPanel{width:min(440px,96vw);max-height:88vh;overflow:auto;background:linear-gradient(180deg,var(--bg-panel),var(--bg-panel-2));border:1px solid var(--yellow);border-radius:8px;box-shadow:0 14px 60px rgba(0,0,0,.7)}
+.shop-h{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border);font-family:'Press Start 2P';font-size:11px;color:var(--yellow);position:sticky;top:0;background:var(--bg-panel)}
 .shopx{cursor:pointer;color:var(--ink-dim);font-size:16px}.shopx:hover{color:var(--red)}
-.shop-cash{padding:10px 16px;font-size:13px;color:var(--ink-dim);border-bottom:1px solid var(--border)}
-.shop-cash b{color:var(--yellow);font-size:16px}
+.shop-cash{padding:10px 16px;font-size:13px;color:var(--ink-dim);border-bottom:1px solid var(--border)}.shop-cash b{color:var(--yellow);font-size:16px}
 #shopItems{padding:10px 14px}
-.shop-item{display:flex;align-items:center;gap:12px;background:var(--bg-panel-2);border:1px solid var(--border);border-radius:6px;padding:11px 12px;margin-bottom:9px;transition:.12s}
-.shop-item .ic{font-size:26px;filter:drop-shadow(0 0 6px rgba(35,230,255,.4))}
-.shop-item .mid{flex:1}
-.shop-item .nm{font-size:13px;color:var(--ink)}
-.shop-item .ds{font-size:10px;color:var(--ink-dim);margin-top:2px}
-.shop-item .buy{font-family:'Press Start 2P';font-size:8px;padding:9px 11px;border:2px solid var(--green);color:var(--green);
-  border-radius:4px;cursor:pointer;white-space:nowrap;transition:.12s;text-align:center;min-width:78px}
-.shop-item .buy:hover{background:var(--green);color:#062012;box-shadow:0 0 12px rgba(61,255,158,.5)}
+.shop-item{display:flex;align-items:center;gap:12px;background:var(--bg-panel-2);border:1px solid var(--border);border-radius:6px;padding:11px 12px;margin-bottom:9px}
+.shop-item .ic{font-size:25px}.shop-item .mid{flex:1}.shop-item .nm{font-size:13px}.shop-item .ds{font-size:10px;color:var(--ink-dim);margin-top:2px}
+.shop-item .buy{font-family:'Press Start 2P';font-size:8px;padding:9px 11px;border:2px solid var(--green);color:var(--green);border-radius:4px;cursor:pointer;white-space:nowrap;text-align:center;min-width:80px}
+.shop-item .buy:hover{background:var(--green);color:#062012}
 .shop-item .buy.cant{border-color:var(--ink-faint);color:var(--ink-faint);cursor:not-allowed}
 .shop-item .buy.owned{border-color:var(--cyan);color:var(--cyan);cursor:default}
-.shop-bills{padding:11px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--ink-dim);background:rgba(255,77,109,.05)}
-.shop-bills b{color:var(--red)}
-
-/* end screen */
+.shop-bills{padding:11px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--ink-dim);background:rgba(255,77,109,.05)}.shop-bills b{color:var(--red)}
 #endPanel{width:min(420px,94vw);text-align:center;background:linear-gradient(180deg,var(--bg-panel),var(--bg-panel-2));border-radius:10px;padding:30px 26px;box-shadow:0 16px 70px rgba(0,0,0,.8)}
 #endTitle{font-family:'Press Start 2P';font-size:26px;letter-spacing:2px;margin-bottom:14px}
-#endTitle.win{color:var(--green);text-shadow:0 0 18px rgba(61,255,158,.6)}
-#endTitle.lose{color:var(--red);text-shadow:0 0 18px rgba(255,77,109,.6)}
-#endBody{font-size:13px;color:var(--ink-dim);line-height:1.9;margin-bottom:22px}
-#endBody b{color:var(--ink)}
-.end-btn{font-family:'Press Start 2P';font-size:12px;padding:14px 22px;border:2px solid var(--cyan);color:var(--cyan);border-radius:5px;cursor:pointer;display:inline-block;letter-spacing:1px}
-.end-btn:hover{background:var(--cyan);color:#001016;box-shadow:0 0 20px rgba(35,230,255,.5)}
+#endTitle.win{color:var(--green);text-shadow:0 0 18px rgba(61,255,158,.6)}#endTitle.lose{color:var(--red);text-shadow:0 0 18px rgba(255,77,109,.6)}
+#endBody{font-size:13px;color:var(--ink-dim);line-height:1.9;margin-bottom:22px}#endBody b{color:var(--ink)}
+.end-btn{font-family:'Press Start 2P';font-size:12px;padding:14px 22px;border:2px solid var(--cyan);color:var(--cyan);border-radius:5px;cursor:pointer;display:inline-block}
+.end-btn:hover{background:var(--cyan);color:#001016}
+#boot{position:fixed;inset:0;z-index:80;background:radial-gradient(ellipse at 50% 40%,#10203a,#070912);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;padding:24px}
+#boot .logo{font-family:'Press Start 2P';font-size:clamp(20px,5vw,40px);color:var(--cyan);text-shadow:0 0 14px var(--cyan),0 0 40px rgba(35,230,255,.4);letter-spacing:2px}
+#boot .sub{font-family:'Press Start 2P';font-size:9px;color:var(--yellow);letter-spacing:3px}
+#boot .tip{color:var(--ink-dim);font-size:12px;max-width:470px;line-height:1.7}
+#boot .start{font-family:'Press Start 2P';font-size:12px;padding:15px 26px;border:2px solid var(--cyan);color:var(--cyan);background:transparent;border-radius:4px;cursor:pointer;letter-spacing:2px;animation:pulse 1.4s infinite}
+#boot .start:hover{background:var(--cyan);color:#001016;box-shadow:0 0 24px rgba(35,230,255,.6)}
+@keyframes pulse{50%{opacity:.6}}.blink{animation:blink 1.1s step-end infinite}@keyframes blink{50%{opacity:0}}
+@media(max-width:720px){:root{--rail-w:180px}.brand small{display:none}.stat{min-width:54px;padding:4px 7px}.stat .v{font-size:12px}}
 </style>
 </head>
 <body>
@@ -168,725 +109,577 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg-void);color
   <div id="hud">
     <div class="brand">PIPE TYCOON<small>JOHNSON BROS</small></div>
     <div class="stats" id="stats"></div>
-    <div class="shopbtn" id="shopBtn" title="Spend cash to grow">&#128722; SHOP</div>
+    <div class="shopbtn" id="shopBtn">&#128722; SHOP</div>
     <div class="time">
       <div class="tbtn" id="t0" title="Pause (space)">II</div>
-      <div class="tbtn on" id="t1" title="Play">&#9654;</div>
-      <div class="tbtn" id="t2" title="Fast">&#187;</div>
-      <div class="tbtn" id="t3" title="Ludicrous">&#187;&#187;</div>
+      <div class="tbtn on" id="t1">&#9654;</div>
+      <div class="tbtn" id="t2">&#187;</div>
+      <div class="tbtn" id="t3">&#187;&#187;</div>
     </div>
   </div>
-
   <div id="rail">
     <div id="goalBox">
-      <div class="goal-top"><span>GOAL · Net Worth</span><span id="goalAmt">$0</span></div>
+      <div class="goal-top"><span>GOAL · Net Worth</span><b id="goalAmt">$0</b></div>
       <div class="goal-bar"><div class="goal-fill" id="goalFill"></div></div>
-      <div class="goal-sub" id="goalSub">Reach $100,000 to win</div>
+      <div class="goal-sub" id="goalSub"></div>
     </div>
     <div class="rail-h">JOB BOARD <span class="cnt" id="jobCnt">0</span></div>
     <div id="jobList"></div>
     <div class="fleet" id="fleet"></div>
   </div>
-
   <div id="cityWrap"><canvas id="city"></canvas></div>
 </div>
-
-<!-- SHOP modal -->
 <div id="shopScrim"><div id="shopPanel">
   <div class="shop-h"><span>&#128722; SHOP — spend cash to grow</span><span class="shopx" id="shopClose">&#10005;</span></div>
-  <div class="shop-cash" id="shopCash"></div>
-  <div id="shopItems"></div>
-  <div class="shop-bills" id="shopBills"></div>
+  <div class="shop-cash" id="shopCash"></div><div id="shopItems"></div><div class="shop-bills" id="shopBills"></div>
 </div></div>
-
-<!-- end-game modal -->
-<div id="endScrim"><div id="endPanel">
-  <div id="endTitle"></div>
-  <div id="endBody"></div>
-  <div class="end-btn" id="endAgain">PLAY AGAIN</div>
-</div></div>
-
+<div id="endScrim"><div id="endPanel"><div id="endTitle"></div><div id="endBody"></div><div class="end-btn" id="endAgain">PLAY AGAIN</div></div></div>
 <div id="toasts"></div>
-
 <div id="boot">
   <div class="logo">PIPE TYCOON</div>
-  <div class="sub">BUILD A PLUMBING EMPIRE</div>
-  <div class="tip">A busted city needs a plumber. Jobs pop up across town — click a job to send your van, finish the work, get paid. Grow from one van to an empire. <span class="blink">&#9660;</span></div>
+  <div class="sub">FROM ONE VAN TO AN EMPIRE</div>
+  <div class="tip">You run the plumbing company for a growing town. Jobs pop up around the city — <b>dispatch your van before the customer's patience runs out!</b> Earn cash, hit the SHOP to buy vans & crew, and watch your village grow into a city. <span class="blink">&#9660;</span></div>
   <div class="start" id="bootStart">INSERT COIN &rsaquo; START</div>
-  <div class="tip" style="font-size:10px">Drag to pan &middot; scroll to zoom &middot; space to pause</div>
-  <div class="tip" id="buildStamp" style="font-size:9px;color:var(--ink-faint)"></div>
+  <div class="tip" style="font-size:10px">Drag to pan · scroll to zoom · space to pause · click a job pin to dispatch</div>
 </div>
-
 <script>
 'use strict';
-const BUILD='v0.4 · 2026-06-01 · tycoon loop';
+const BUILD='v0.5 · 2026-06-01 · juice+grow';
 console.log('PIPE TYCOON '+BUILD+' loading…');
-/* ============================================================
-   0. CONSTANTS
-   ============================================================ */
-const TILE_W=64, TILE_H=32, TILE_DEPTH=22;
-const GRID=24;
-const DAY_MS=1200;                 // real ms per game-day @1x
-const SPEEDS=[0,1,2,4];
-const VAN_TILES_PER_DAY=15;        // tuned so a trip is watchable at 1x
-const DEPOT={gx:12,gy:14};
+
+/* ===================== CONSTANTS ===================== */
+const TILE_W=64, TILE_H=32, FLOOR_H=14;
+const GRID=26, CENTER=GRID/2;
+const DAY_MS=1100, SPEEDS=[0,1,2,4];
+const VAN_TILES_PER_DAY=9;     // slower travel → a van clears fewer jobs/day → capacity is scarce
+const DEPOT={gx:13,gy:13};
+const GOAL=150000;
 const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-// Job catalogue (slice-1 subset). dur in game-days.
+// jobs: variety + emergencies + rep-gated premium work
 const JOBS={
-  drip:   {label:'Dripping Faucet', icon:'\u{1F6BF}', pay:130, parts:20, dur:0.45, urgency:'LOW'},
-  clog:   {label:'Clogged Drain',   icon:'\u{1F300}', pay:180, parts:28, dur:0.55, urgency:'LOW'},
-  toilet: {label:'Running Toilet',  icon:'\u{1F6BD}', pay:160, parts:30, dur:0.45, urgency:'LOW'},
-  leak:   {label:'Pipe Leak',       icon:'\u{1F4A6}', pay:320, parts:70, dur:0.8,  urgency:'MED'},
-  sewer:  {label:'Sewer Backup',    icon:'\u{1F30A}', pay:480, parts:110,dur:1.0,  urgency:'HIGH'},
-  heater: {label:'Water Heater',    icon:'\u{1F525}', pay:950, parts:420,dur:1.5,  urgency:'MED'},
-  burst:  {label:'BURST PIPE!',     icon:'\u{1F6A8}', pay:700, parts:150,dur:0.9,  urgency:'CRIT'},
+  drip:   {label:'Dripping Faucet', ic:'\u{1F6BF}', pay:130, parts:18, dur:0.4, urg:'LOW',  repReq:0},
+  clog:   {label:'Clogged Drain',   ic:'\u{1F300}', pay:180, parts:26, dur:0.5, urg:'LOW',  repReq:0},
+  toilet: {label:'Running Toilet',  ic:'\u{1F6BD}', pay:170, parts:28, dur:0.45,urg:'LOW',  repReq:0},
+  leak:   {label:'Pipe Leak',       ic:'\u{1F4A6}', pay:340, parts:70, dur:0.8, urg:'MED',  repReq:18},
+  sewer:  {label:'Sewer Backup',    ic:'\u{1F4A9}', pay:520, parts:120,dur:1.0, urg:'HIGH', repReq:30},
+  heater: {label:'Water Heater',    ic:'\u{1F525}', pay:980, parts:430,dur:1.5, urg:'MED',  repReq:45},
+  remodel:{label:'Bath Remodel',    ic:'\u{1F6C1}', pay:2200,parts:900,dur:2.6, urg:'MED',  repReq:60},
+  burst:  {label:'BURST PIPE!',     ic:'\u{1F6A8}', pay:850, parts:150,dur:0.9, urg:'CRIT', repReq:0},
+  main:   {label:'WATER MAIN BREAK',ic:'\u{1F6A8}', pay:1800,parts:320,dur:1.3, urg:'CRIT', repReq:35},
 };
-const URGENCY={ LOW:{acceptDays:5,col:'#46527A'}, MED:{acceptDays:4,col:'#23E6FF'},
-               HIGH:{acceptDays:3,col:'#FF9A3D'}, CRIT:{acceptDays:2,col:'#FF4D6D'} };
+// patience (game-days before the customer gives up) — emergencies are brutal
+const URG={ LOW:{pat:9,col:'#7E8DB5'}, MED:{pat:6,col:'#23E6FF'}, HIGH:{pat:3.5,col:'#FF9A3D'}, CRIT:{pat:2.2,col:'#FF4D6D'} };
 
-// Building types -> job mix (weights). Colors are roof/wall base.
-const BTYPES={
-  home:   {label:'Home',          col:'#3fae6b', floors:1, mix:{drip:30,clog:25,leak:20,toilet:15,burst:10}},
-  triple: {label:'Triple-Decker', col:'#b9772f', floors:3, mix:{clog:25,leak:20,toilet:15,heater:15,burst:15,drip:10}},
-  apt:    {label:'Apartments',    col:'#8a8f9c', floors:5, mix:{clog:25,leak:20,heater:20,sewer:15,burst:20}},
-  shop:   {label:'Storefront',    col:'#d6b13a', floors:2, mix:{clog:30,leak:20,sewer:20,toilet:15,heater:15}},
+// building archetypes — chosen by distance from downtown; floors grow with city tier
+const ARCH={
+  house: {wall:'#caa775', roof:'#b5532f', roofType:'peak', mix:{drip:34,clog:26,toilet:18,leak:14,burst:8}},
+  triple:{wall:'#b8c0a0', roof:'#7d4a2c', roofType:'flat', mix:{clog:24,leak:20,toilet:14,heater:12,burst:14,sewer:8,drip:8}},
+  apt:   {wall:'#9aa7c4', roof:'#3a4a66', roofType:'ac',   mix:{clog:20,leak:18,heater:18,sewer:16,burst:16,remodel:6,main:6}},
+  shop:  {wall:'#d8b24a', roof:'#9a7820', roofType:'sign', mix:{clog:26,leak:16,sewer:18,heater:16,toilet:12,burst:12}},
+  tower: {wall:'#8fb6c9', roof:'#2f4858', roofType:'tank', mix:{leak:18,heater:16,sewer:16,remodel:18,main:16,burst:16}},
 };
 
-/* ============================================================
-   1. STATE
-   ============================================================ */
-const GOAL=100000;               // net-worth target to WIN
+/* ===================== STATE ===================== */
 const state={
-  started:false, speed:1, over:null,   // over: null | 'WIN' | 'LOSE'
-  dayF:0, day:0, lastBillDay:0,    // continuous + integer day; bill bookkeeping
-  cash:15000, rep:30, marketShare:0.32,
-  netWorth:15000,
-  // growth assets
-  plumbers:1,                     // crews available (caps concurrent jobs)
-  hqCap:2,                        // max vans HQ can hold
-  toolSpeed:1,                    // tool multiplier on work time (1 = base)
-  toolsOwned:{},                  // unlocked tool ids
-  // bills / bookkeeping
-  jobsDone:0, lifetimeRevenue:0, brokeWeeks:0,
-  tiles:[], buildings:[],          // world
-  jobs:[],                         // OFFERED + active service calls
-  vans:[],                         // fleet
-  jobSeq:1,
-  cam:{x:0,y:0,zoom:1,minZoom:0.55,maxZoom:2.2},
-  spawnAccum:0,
+  started:false, speed:1, over:null,
+  dayF:0, day:0, lastBillDay:0,
+  cash:15000, rep:24, netWorth:15000, cityTier:0,
+  plumbers:1, hqCap:2, toolSpeed:1, toolsOwned:{},
+  jobsDone:0, lifetimeRevenue:0, brokeWeeks:0, expired:0,
+  combo:0, comboTimer:0,
+  lots:[], grid:[],              // developed lots; grid index -> lot|road|null
+  jobs:[], vans:[], jobSeq:1, spawnAccum:0,
+  cam:{x:0,y:0,zoom:1,minZoom:0.5,maxZoom:2.2},
+  parts:[], coins:[], pops:[], flash:0,
+  vClock:0, ambient:[], clouds:[], smoke:[],
 };
 
-/* ---- SHOP CATALOG: what cash is FOR ---- */
-const PAY_MULT=1.6;                          // global job-revenue tuning knob
-const VAN_COST=9000, VAN_RESALE=6500;      // asset value counts toward net worth
-const HQ_COST=5000, HQ_ADD=2;              // +2 van slots
-const PLUMBER_WAGE=500;                     // per week, lets a van run a job
+/* shop catalog */
+const PAY_MULT=1.15;
+const VAN_COST=14000, VAN_RESALE=9000, HQ_COST=9000, HQ_ADD=2, PLUMBER_WAGE=900;
 const TOOLS={
-  auger:  {name:'Power Auger',   icon:'\u{1F527}', cost:1800, desc:'Jobs 25% faster', mult:0.75},
-  jetter: {name:'Hydro-Jetter',  icon:'\u{1F6BF}', cost:5200, desc:'Jobs 40% faster (stacks)', mult:0.82},
-  press:  {name:'ProPress Kit',  icon:'\u{2699}',  cost:3600, desc:'Jobs 15% faster + tidier', mult:0.87},
+  auger: {name:'Power Auger',  ic:'\u{1F527}', cost:1700, desc:'Jobs 22% faster',          mult:0.78},
+  press: {name:'ProPress Kit', ic:'\u{2699}',  cost:3400, desc:'Jobs 16% faster (stacks)', mult:0.84},
+  jetter:{name:'Hydro-Jetter', ic:'\u{1F6BF}', cost:5600, desc:'Jobs 30% faster (stacks)', mult:0.70},
 };
-/* ---- WEEKLY BILLS (the pressure) ---- */
-function weeklyBills(){
-  const payroll=state.plumbers*PLUMBER_WAGE;
-  const fuel=state.vans.length*50;
-  const rent=150 + Math.max(0,state.hqCap-2)*100;
-  return {payroll, fuel, rent, total:payroll+fuel+rent};
-}
-function assetValue(){
-  let v=state.vans.length*VAN_RESALE;
-  v += Math.max(0,state.hqCap-2)/HQ_ADD*HQ_COST*0.5;
-  for(const id in state.toolsOwned) v+=TOOLS[id].cost*0.5;
-  return v;
-}
-function recalcNetWorth(){ state.netWorth=Math.round(state.cash+assetValue()); }
+function weeklyBills(){ const payroll=state.plumbers*PLUMBER_WAGE, fuel=state.vans.length*55, rent=180+Math.max(0,state.hqCap-2)*90;
+  return {payroll,fuel,rent,total:payroll+fuel+rent}; }
+function assetValue(){ let v=state.vans.length*VAN_RESALE; v+=Math.max(0,state.hqCap-2)/HQ_ADD*HQ_COST*0.5;
+  for(const id in state.toolsOwned) v+=TOOLS[id].cost*0.5; return v; }
+function recalcNetWorth(){ state.netWorth=Math.round(state.cash+assetValue()); updateCityTier(); }
 
-/* ============================================================
-   2. CANVAS + CAMERA + ISO MATH
-   ============================================================ */
+/* ===================== CANVAS / ISO ===================== */
 const cv=document.getElementById('city'), ctx=cv.getContext('2d');
 let DPR=Math.min(window.devicePixelRatio||1,2);
 function resize(){ DPR=Math.min(window.devicePixelRatio||1,2);
-  const w=cv.clientWidth||window.innerWidth-248, h=cv.clientHeight||window.innerHeight-56;
-  cv.width=Math.max(1,w*DPR); cv.height=Math.max(1,h*DPR); }
-window.addEventListener('resize',()=>{ resize(); });
-if(window.ResizeObserver){ try{ new ResizeObserver(()=>resize()).observe(cv); }catch(e){} }
-
+  const w=cv.clientWidth||window.innerWidth-250, h=cv.clientHeight||window.innerHeight-56;
+  cv.width=Math.max(1,Math.round(w*DPR)); cv.height=Math.max(1,Math.round(h*DPR)); }
+window.addEventListener('resize',resize);
+if(window.ResizeObserver){ try{ new ResizeObserver(()=>{ resize(); if(STILL) render(); }).observe(cv); }catch(e){} }
 function isoX(gx,gy){ return (gx-gy)*(TILE_W/2); }
 function isoY(gx,gy){ return (gx+gy)*(TILE_H/2); }
-function screenToWorld(sx,sy){ return {x:(sx*DPR-state.cam.x)/state.cam.zoom, y:(sy*DPR-state.cam.y)/state.cam.zoom}; }
-function worldToTile(wx,wy){ const a=wx/(TILE_W/2), b=wy/(TILE_H/2); return {gx:(a+b)/2, gy:(b-a)/2}; }
-function tileCenterScreen(gx,gy,floors){ // returns screen px (CSS) of a tile's top
-  const wx=isoX(gx,gy), wy=isoY(gx,gy)-(floors||0)*TILE_DEPTH;
-  return {x:(wx*state.cam.zoom+state.cam.x)/DPR, y:(wy*state.cam.zoom+state.cam.y)/DPR};
-}
-function centerCamera(){ state.cam.x=cv.width/2-isoX(DEPOT.gx,DEPOT.gy)*state.cam.zoom;
-  state.cam.y=cv.height/2-isoY(DEPOT.gx,DEPOT.gy)*state.cam.zoom-40; }
+function screenToWorld(sx,sy){ return {x:(sx*DPR-state.cam.x)/state.cam.zoom,y:(sy*DPR-state.cam.y)/state.cam.zoom}; }
+function worldToTile(wx,wy){ const a=wx/(TILE_W/2),b=wy/(TILE_H/2); return {gx:(a+b)/2,gy:(b-a)/2}; }
+function screenToTile(sx,sy){ const w=screenToWorld(sx,sy); return worldToTile(w.x,w.y); }
+function tileTopScreen(gx,gy,floors){ const wx=isoX(gx,gy), wy=isoY(gx,gy)-(floors||0)*FLOOR_H;
+  return {x:(wx*state.cam.zoom+state.cam.x)/DPR, y:(wy*state.cam.zoom+state.cam.y)/DPR}; }
+function centerCamera(){ state.cam.x=cv.width/2-isoX(CENTER,CENTER)*state.cam.zoom;
+  state.cam.y=cv.height/2-isoY(CENTER,CENTER)*state.cam.zoom-30; }
 
-/* ============================================================
-   3. WORLD GEN  (slice-1: a clustered central city)
-   ============================================================ */
-function pick(weights){ let t=0; for(const k in weights)t+=weights[k]; let r=Math.random()*t;
-  for(const k in weights){ if((r-=weights[k])<0) return k; } return Object.keys(weights)[0]; }
+/* ===================== WORLD: village -> city ===================== */
+function rnd(s){ s=Math.sin(s*127.1)*43758.5453; return s-Math.floor(s); }
+function archFor(dist,seed){
+  if(dist<3.2) return seed<0.45?'tower':'shop';
+  if(dist<5.5) return seed<0.5?'apt':(seed<0.8?'triple':'shop');
+  if(dist<8)   return seed<0.55?'triple':'house';
+  return seed<0.85?'house':'triple';
+}
 function genCity(){
-  state.tiles=[]; state.buildings=[];
-  const cx=GRID/2, cy=GRID/2;
-  const btKeys=Object.keys(BTYPES);
+  state.lots=[]; state.grid=new Array(GRID*GRID).fill(null);
   for(let gy=0;gy<GRID;gy++)for(let gx=0;gx<GRID;gx++){
-    const road=(gx%4===0)||(gy%4===0);
-    const dist=Math.hypot(gx-cx,gy-cy);
-    const t={gx,gy,road,b:null};
-    state.tiles.push(t);
-    if(!road && dist<10 && Math.random()<0.82){
-      // weight building types: more homes/triples near center, apts/shops sprinkled
-      const w = dist<4 ? {home:5,triple:4,shop:2,apt:1} : {home:6,triple:3,apt:2,shop:2};
-      const type=pick(w);
-      const bt=BTYPES[type];
-      const floors = type==='home'?1 : 1+Math.floor(Math.random()*bt.floors);
-      t.b={type,floors,lit:Math.random()<0.7,gx,gy};
-      state.buildings.push(t.b);
-    }
+    const road=(gx%5===0)||(gy%5===0);
+    if(road){ state.grid[gy*GRID+gx]={road:true,gx,gy}; continue; }
+    const dist=Math.hypot(gx-CENTER,gy-CENTER);
+    if(dist>11) continue;                         // beyond the buildable area = empty land
+    const seed=rnd(gx*7.3+gy*13.7);
+    // threshold: central lots exist from the start (village core); outer develop as the city grows
+    const threshold=Math.max(0,Math.floor(dist*0.7 + seed*1.6 - 1.5));
+    const type=archFor(dist,seed);
+    const park=(!road && seed>0.93 && dist>3);
+    const maxFloors={house:1,triple:3,shop:2,apt:6,tower:9}[type];
+    const lot={gx,gy,dist,seed,threshold,type,maxFloors,park,floors:0,built:false,pop:0,
+      lit:seed>0.32, wob:seed};
+    state.lots.push(lot); state.grid[gy*GRID+gx]=lot;
   }
-  // starter fleet — ONE van + ONE crew, clearly profitable; buy more in the SHOP
-  state.vans=[
-    {id:1,name:'Van 1',state:'IDLE',gx:DEPOT.gx,gy:DEPOT.gy,curGx:DEPOT.gx,curGy:DEPOT.gy,srcGx:DEPOT.gx,srcGy:DEPOT.gy,job:null,travel:0,travelDays:0,work:0,color:'#23E6FF'},
-  ];
+  state.vans=[{id:1,name:'Van 1',state:'IDLE',gx:DEPOT.gx,gy:DEPOT.gy,curGx:DEPOT.gx,curGy:DEPOT.gy,srcGx:DEPOT.gx,srcGy:DEPOT.gy,job:null,travel:0,travelDays:0,work:0,color:'#23E6FF'}];
+  updateCityTier(true);
   initAmbient();
 }
-
-/* ============================================================
-   3b. AMBIENT LIFE — traffic, clouds, smoke, day/night
-   (driven on REAL time so the city breathes even when paused)
-   ============================================================ */
-const ROAD_LINES=(()=>{ const a=[]; for(let k=0;k<GRID;k+=4) a.push(k); return a; })();
-const TRAFFIC_COLORS=['#9fb4d6','#c9d6f0','#ff9a3d','#b26bff','#ffd23f','#7E8DB5','#FF5FD2'];
-function spawnTraffic(){
-  const horiz=Math.random()<0.5, line=ROAD_LINES[(Math.random()*ROAD_LINES.length)|0], dir=Math.random()<0.5?1:-1;
-  const sp=1.1+Math.random()*1.8, col=TRAFFIC_COLORS[(Math.random()*TRAFFIC_COLORS.length)|0];
-  return horiz ? {gx:dir>0?-1:GRID, gy:line, dx:dir, dy:0, sp, col}
-               : {gx:line, gy:dir>0?-1:GRID, dx:0, dy:dir, sp, col};
-}
-function initAmbient(){
-  state.vClock=0; state.ambient=[]; state.clouds=[]; state.smoke=[];
-  for(let i=0;i<16;i++){ const c=spawnTraffic(); // spread along their lane
-    if(c.dx) c.gx=Math.random()*GRID; else c.gy=Math.random()*GRID; state.ambient.push(c); }
-  for(let i=0;i<6;i++) state.clouds.push({x:Math.random(),y:0.04+Math.random()*0.30,s:0.5+Math.random()*0.9,v:0.006+Math.random()*0.012,a:0.05+Math.random()*0.06});
-}
-function updateAmbient(dtMs){
-  const dt=Math.min(80,dtMs)/1000;        // seconds, clamped
-  state.vClock=(state.vClock||0)+dt;
-  // traffic
-  for(const c of state.ambient){
-    c.gx+=c.dx*c.sp*dt; c.gy+=c.dy*c.sp*dt;
-    if(c.gx< -2||c.gx>GRID+2||c.gy< -2||c.gy>GRID+2){ Object.assign(c, spawnTraffic()); }
+function updateCityTier(initial){
+  const tier=Math.min(9,Math.floor(Math.max(0,state.netWorth-12000)/16000));
+  if(tier===state.cityTier && !initial) return;
+  const grew = tier>state.cityTier;
+  state.cityTier=tier;
+  let newlyBuilt=0;
+  for(const lot of state.lots){
+    if(lot.park) continue;
+    const want = tier>=lot.threshold;
+    const newFloors = want ? Math.min(lot.maxFloors, 1+Math.max(0,tier-lot.threshold)) : 0;
+    if(want && !lot.built){ lot.built=true; lot.floors=newFloors; if(!initial){ lot.pop=1; newlyBuilt++; } }
+    else if(want && newFloors>lot.floors){ lot.floors=newFloors; if(!initial) lot.pop=0.6; }
   }
-  // clouds (screen-space drift)
-  for(const cl of state.clouds){ cl.x+=cl.v*dt; if(cl.x>1.25){ cl.x=-0.25; cl.y=0.04+Math.random()*0.30; } }
-  // smoke spawn from a few buildings + age
-  if(state.buildings.length && Math.random()<dt*6){ const b=state.buildings[(Math.random()*state.buildings.length)|0];
-    if(b.floors>=2) state.smoke.push({gx:b.gx,gy:b.gy,top:b.floors*TILE_DEPTH+6,life:0,max:2.2+Math.random()*1.5,dx:(Math.random()-0.5)*6}); }
-  for(const s of state.smoke) s.life+=dt;
-  state.smoke=state.smoke.filter(s=>s.life<s.max);
+  if(grew && !initial && newlyBuilt>0){ toast('🏗️ The city is growing! '+newlyBuilt+' new buildings.','good'); }
 }
-// 0=midnight(dark) .. peaks at noon; visual day ~46s real, capped so never too dark
-function nightAmt(){ const f=((state.vClock||0)/46)%1; return 0.46*(1-Math.sin(f*Math.PI)); }
+function developedBuildings(){ return state.lots.filter(l=>l.built && !l.park); }
 
-/* ============================================================
-   4. JOBS  — spawn / accept-dispatch / resolve
-   ============================================================ */
+/* ===================== JOBS: scarcity + patience + triage ===================== */
+function pickMix(mix){ let t=0; for(const k in mix)t+=mix[k]; let r=Math.random()*t;
+  for(const k in mix){ if((r-=mix[k])<0) return k; } return Object.keys(mix)[0]; }
 function spawnJob(){
-  const cands=state.buildings;
-  if(!cands.length) return;
-  const b=cands[(Math.random()*cands.length)|0];
-  // avoid stacking 2 offered jobs on same building
-  if(state.jobs.some(j=>j.gx===b.gx&&j.gy===b.gy)) return;
-  const type=pick(BTYPES[b.type].mix);
-  const def=JOBS[type];
-  const j={ id:state.jobSeq++, type, gx:b.gx, gy:b.gy, floors:b.floors,
-    pay:def.pay, parts:def.parts, dur:def.dur, urgency:def.urgency,
-    state:'OFFERED', acceptLeft:URGENCY[def.urgency].acceptDays, acceptMax:URGENCY[def.urgency].acceptDays };
+  const blds=developedBuildings(); if(!blds.length) return;
+  // try a few buildings to find one without an active job
+  let b=null; for(let i=0;i<6;i++){ const c=blds[(Math.random()*blds.length)|0];
+    if(!state.jobs.some(j=>j.gx===c.gx&&j.gy===c.gy)){ b=c; break; } }
+  if(!b) return;
+  // pick a job type from the building, but gate premium jobs behind reputation
+  let type=pickMix(ARCH[b.type].mix); let guard=0;
+  while(JOBS[type].repReq>state.rep && guard++<5) type=pickMix(ARCH[b.type].mix);
+  if(JOBS[type].repReq>state.rep) type='clog';
+  const d=JOBS[type];
+  const j={id:state.jobSeq++,type,gx:b.gx,gy:b.gy,floors:b.floors,pay:d.pay,parts:d.parts,dur:d.dur,
+    urg:d.urg,state:'OFFERED',pat:URG[d.urg].pat,patMax:URG[d.urg].pat};
   state.jobs.push(j);
-  if(def.urgency==='CRIT'){ sfx('alert'); toast('Emergency: '+def.label+'!','bad'); }
+  if(d.urg==='CRIT'){ sfx('alert'); screenShake(5); toast('🚨 '+d.label+' — act fast!','bad'); }
   else sfx('jobnew');
 }
 function tileDist(ax,ay,bx,by){ return Math.abs(ax-bx)+Math.abs(ay-by); }
 function busyCrews(){ return state.vans.filter(v=>v.state!=='IDLE').length; }
 function dispatch(job){
-  if(job.state!=='OFFERED') return false;
+  if(!job||job.state!=='OFFERED') return false;
   const van=state.vans.find(v=>v.state==='IDLE');
-  if(!van){ toast('No idle van! Buy another van in the SHOP.','warn'); sfx('error'); return false; }
-  // a van needs a free plumber/crew to run a job
-  if(busyCrews()>=state.plumbers){ toast('No free plumber! Hire one in the SHOP.','warn'); sfx('error'); return false; }
+  if(!van){ toast('No idle van! Buy one in the SHOP.','warn'); sfx('error'); return false; }
+  if(busyCrews()>=state.plumbers){ toast('No free crew! Hire a plumber in the SHOP.','warn'); sfx('error'); return false; }
   job.state='ENROUTE';
-  van.state='DRIVING'; van.job=job;
-  van.srcGx=van.gx; van.srcGy=van.gy;
-  van.travel=0; van.travelDays=Math.max(0.18, tileDist(van.gx,van.gy,job.gx,job.gy)/VAN_TILES_PER_DAY);
-  van.work=0;
-  sfx('dispatch'); toast(van.name+' → '+JOBS[job.type].label,'');
-  return true;
+  van.state='DRIVING'; van.job=job; van.srcGx=van.gx; van.srcGy=van.gy;
+  van.travel=0; van.travelDays=Math.max(0.18,tileDist(van.gx,van.gy,job.gx,job.gy)/VAN_TILES_PER_DAY); van.work=0;
+  sfx('dispatch'); return true;
 }
 function completeJob(van){
   const job=van.job;
-  const net=Math.round(job.pay*PAY_MULT-job.parts);   // costs come out now → margin matters
+  state.combo = state.comboTimer>0 ? Math.min(6,state.combo+1) : 1; state.comboTimer=5;
+  const cm=1+(state.combo-1)*0.12;
+  const net=Math.round((job.pay*PAY_MULT-job.parts)*cm);
   state.cash+=net; state.lifetimeRevenue+=job.pay; state.jobsDone++;
-  state.rep=Math.min(100,state.rep+ (job.urgency==='CRIT'?1.4:0.6));
-  const p=tileCenterScreen(job.gx,job.gy,job.floors+1);
-  cashPop(p.x,p.y,'+$'+net,'#3DFF9E');
-  flashStat('cash'); sfx('cash');
+  state.rep=Math.min(100,state.rep+(job.urg==='CRIT'?1.6:0.7));
+  const p=tileTopScreen(job.gx,job.gy,job.floors+1);
+  spawnCoins(p.x,p.y,Math.min(16,4+Math.round(net/110)));
+  const lot=state.grid[job.gy*GRID+job.gx]; if(lot) lot.pop=Math.max(lot.pop,0.8);
+  addParticles(isoX(job.gx,job.gy),isoY(job.gx,job.gy)-job.floors*FLOOR_H,'#3DFF9E',10);
+  state.flash=Math.min(0.45,0.14+net/7000); screenShake(job.urg==='CRIT'?7:3); hitStop=Math.max(hitStop,40);
+  cashPop(p.x,p.y,'+$'+net+(state.combo>=2?' x'+state.combo:''), state.combo>=3?'#FFD23F':'#3DFF9E');
+  flashStat('cash'); sfx(state.combo>=3?'combo':'cash');
   state.jobs=state.jobs.filter(j=>j!==job);
   van.job=null; van.state='RETURNING'; van.srcGx=van.gx; van.srcGy=van.gy;
-  van.travel=0; van.travelDays=Math.max(0.18, tileDist(van.gx,van.gy,DEPOT.gx,DEPOT.gy)/VAN_TILES_PER_DAY);
+  van.travel=0; van.travelDays=Math.max(0.18,tileDist(van.gx,van.gy,DEPOT.gx,DEPOT.gy)/VAN_TILES_PER_DAY);
   recalcNetWorth(); checkWin();
 }
 
-/* ============================================================
-   5. SIM  — fractional-day stepping
-   ============================================================ */
+/* ===================== SIM ===================== */
 function stepSim(dDays){
-  // vans
+  if(state.comboTimer>0){ state.comboTimer-=dDays; if(state.comboTimer<=0)state.combo=0; }
   for(const v of state.vans){
     if(v.state==='DRIVING'||v.state==='RETURNING'){
-      v.travel+=dDays;
-      const t=Math.min(1,v.travel/v.travelDays);
-      const dst = v.state==='DRIVING' ? v.job : DEPOT;
-      v.curGx=v.srcGx+(dst.gx-v.srcGx)*t; v.curGy=v.srcGy+(dst.gy-v.srcGy)*t;
+      v.travel+=dDays; const t=Math.min(1,v.travel/v.travelDays);
+      const dst=v.state==='DRIVING'?v.job:DEPOT;
+      const e=t*t*(3-2*t);
+      v.curGx=v.srcGx+(dst.gx-v.srcGx)*e; v.curGy=v.srcGy+(dst.gy-v.srcGy)*e;
       if(t>=1){ v.gx=dst.gx; v.gy=dst.gy; v.curGx=dst.gx; v.curGy=dst.gy;
-        if(v.state==='DRIVING'){ v.state='ONSITE'; v.job.state='ONSITE'; v.work=0; }
-        else { v.state='IDLE'; } }
-    } else if(v.state==='ONSITE'){
-      v.work+=dDays;
-      if(v.work>=v.job.dur*state.toolSpeed) completeJob(v);
-    }
+        if(v.state==='DRIVING'){ if(v.job&&v.job.state==='ENROUTE'){ v.state='ONSITE'; v.job.state='ONSITE'; v.work=0; } else { v.state='RETURNING'; v.srcGx=v.gx;v.srcGy=v.gy;v.travel=0;v.travelDays=Math.max(0.18,tileDist(v.gx,v.gy,DEPOT.gx,DEPOT.gy)/VAN_TILES_PER_DAY); } }
+        else v.state='IDLE'; }
+    } else if(v.state==='ONSITE'){ v.work+=dDays; if(v.work>=v.job.dur*state.toolSpeed) completeJob(v); }
   }
-  // offered job expiry
-  for(const j of state.jobs){ if(j.state==='OFFERED'){ j.acceptLeft-=dDays;
-    if(j.acceptLeft<=0){ j.state='EXPIRED'; state.rep=Math.max(0,state.rep-0.8); } } }
-  state.jobs=state.jobs.filter(j=>j.state!=='EXPIRED');
+  // patience decay — the triage pressure. Only OFFERED jobs expire.
+  for(const j of state.jobs){ if(j.state==='OFFERED'){ j.pat-=dDays;
+    if(j.pat<=0){ j.state='GONE'; state.expired++; state.rep=Math.max(0,state.rep-1.4); state.combo=0;
+      sfx('expire'); screenShake(4); const p=tileTopScreen(j.gx,j.gy,j.floors+1);
+      cashPop(p.x,p.y,'LOST!','#FF4D6D'); toast('Missed: '+JOBS[j.type].label+' — customer gave up (-rep)','bad'); } } }
+  state.jobs=state.jobs.filter(j=>j.state!=='GONE');
 }
 function onNewDay(){
-  // job spawn: scales gently with fleet so a bigger crew always has work
-  const rate=1.2+state.vans.length*0.35;
-  state.spawnAccum += rate;
-  while(state.spawnAccum>=1){ if(Math.random()<0.94 && state.jobs.length<12) spawnJob(); state.spawnAccum-=1; }
-  // WEEKLY BILLS every 7 days — the pressure that makes cash matter
+  // SCARCITY: demand driven by CITY SIZE, not your fleet — and deliberately set
+  // ABOVE what a small fleet can clear, so you must triage which jobs to take.
+  const rate = 1.6 + developedBuildings().length*0.16;
+  state.spawnAccum+=rate;
+  const cap=14+state.cityTier*3;
+  while(state.spawnAccum>=1){ if(state.jobs.length<cap) spawnJob(); state.spawnAccum-=1; }
   if(state.day-state.lastBillDay>=7){ state.lastBillDay=state.day; payBills(); }
 }
 function payBills(){
-  const b=weeklyBills();
-  state.cash-=b.total;
-  flashStat('cash'); sfx('cashout');
-  const p={x:window.innerWidth/2, y:90};
-  cashPop(p.x,p.y,'-$'+b.total.toLocaleString()+' bills','#FF4D6D');
-  toast('Weekly bills: -$'+b.total.toLocaleString()+' (payroll/fuel/rent)','warn');
+  const b=weeklyBills(); state.cash-=b.total; flashStat('cash'); sfx('cashout');
+  cashPop(window.innerWidth*0.42,86,'-$'+b.total.toLocaleString()+' bills','#FF4D6D');
   recalcNetWorth();
-  // bankruptcy clock
   if(state.cash<0){ state.brokeWeeks++;
-    if(state.brokeWeeks>=3){ endGame('LOSE'); }
-    else toast('⚠ IN THE RED! '+(3-state.brokeWeeks)+' weeks to recover or you go bust.','bad');
-  } else state.brokeWeeks=0;
+    if(state.brokeWeeks>=3) endGame('LOSE');
+    else { toast('⚠ IN THE RED! '+(3-state.brokeWeeks)+' wks to recover or bankrupt.','bad'); screenShake(8); } }
+  else state.brokeWeeks=0;
 }
 function checkWin(){ if(!state.over && state.netWorth>=GOAL) endGame('WIN'); }
-function endGame(kind){
-  if(state.over) return; state.over=kind; setSpeed(0);
-  sfx(kind==='WIN'?'win':'lose');
-  showEndScreen(kind);
+function endGame(kind){ if(state.over)return; state.over=kind; setSpeed(0); sfx(kind==='WIN'?'win':'lose');
+  if(kind==='WIN') screenShake(10); showEndScreen(kind); }
+
+/* ===================== JUICE ===================== */
+let shakeAmt=0, hitStop=0, STILL=false;
+function screenShake(n){ shakeAmt=Math.max(shakeAmt,n); }
+function addParticles(wx,wy,color,count){ for(let i=0;i<count;i++) state.parts.push({x:wx,y:wy,
+  vx:(Math.random()-0.5)*3.4, vy:(Math.random()-0.5)*3.4-1.8, life:18+Math.random()*16, max:34, color, size:2+Math.random()*2.5}); }
+function spawnCoins(sx,sy,n){ for(let i=0;i<n;i++) state.coins.push({sx:sx+(Math.random()-0.5)*30,sy:sy+(Math.random()-0.5)*18,
+  x:sx,y:sy,t:0,dur:0.45+Math.random()*0.4,arc:0.5+Math.random()*0.9}); }
+function coinTarget(){ const el=document.getElementById('vCash'); if(el){ const r=el.getBoundingClientRect();
+  return {x:r.left+r.width/2,y:r.top+r.height/2}; } return {x:window.innerWidth*0.4,y:30}; }
+function updateJuice(dtMs){ const d=Math.min(40,dtMs)/16.7;
+  for(let i=state.parts.length-1;i>=0;i--){ const p=state.parts[i]; p.x+=p.vx*d; p.y+=p.vy*d; p.vy+=0.12*d; p.life-=d; if(p.life<=0)state.parts.splice(i,1); }
+  const tg=coinTarget();
+  for(let i=state.coins.length-1;i>=0;i--){ const c=state.coins[i]; c.t+=d/(c.dur*60);
+    if(c.t>=1){ state.coins.splice(i,1); flashStat('cash'); continue; }
+    const e=c.t*c.t*(3-2*c.t); c.x=c.sx+(tg.x-c.sx)*e; c.y=c.sy+(tg.y-c.sy)*e-Math.sin(c.t*Math.PI)*44*c.arc; }
+  for(const lot of state.lots){ if(lot.pop>0) lot.pop=Math.max(0,lot.pop-0.03*d); }
+  if(state.flash>0) state.flash=Math.max(0,state.flash-0.035*d);
+  if(shakeAmt>0) shakeAmt=Math.max(0,shakeAmt-0.55*d);
 }
 
-/* ============================================================
-   6. RENDER
-   ============================================================ */
-function shade(hex,amt){ const n=parseInt(hex.slice(1),16);
-  let r=(n>>16)+amt,g=((n>>8)&255)+amt,b=(n&255)+amt;
+/* ===================== AMBIENT (traffic / clouds / day-night) ===================== */
+const ROADS=(()=>{const a=[];for(let k=0;k<GRID;k+=5)a.push(k);return a;})();
+const TRCOL=['#aebcd8','#c9d6f0','#FF9A3D','#B26BFF','#FFD23F','#7E8DB5'];
+function spawnTraffic(){ const horiz=Math.random()<0.5,line=ROADS[(Math.random()*ROADS.length)|0],dir=Math.random()<0.5?1:-1,sp=1+Math.random()*1.6,col=TRCOL[(Math.random()*TRCOL.length)|0];
+  return horiz?{gx:dir>0?-1:GRID,gy:line,dx:dir,dy:0,sp,col}:{gx:line,gy:dir>0?-1:GRID,dx:0,dy:dir,sp,col}; }
+function initAmbient(){ state.vClock=0; state.ambient=[]; state.clouds=[];
+  for(let i=0;i<14;i++){ const c=spawnTraffic(); if(c.dx)c.gx=Math.random()*GRID; else c.gy=Math.random()*GRID; state.ambient.push(c); }
+  for(let i=0;i<6;i++) state.clouds.push({x:Math.random(),y:0.04+Math.random()*0.26,s:0.5+Math.random()*0.9,v:0.005+Math.random()*0.01,a:0.05+Math.random()*0.05}); }
+function updateAmbient(dtMs){ const dt=Math.min(80,dtMs)/1000; state.vClock+=dt;
+  for(const c of state.ambient){ c.gx+=c.dx*c.sp*dt; c.gy+=c.dy*c.sp*dt; if(c.gx<-2||c.gx>GRID+2||c.gy<-2||c.gy>GRID+2)Object.assign(c,spawnTraffic()); }
+  for(const cl of state.clouds){ cl.x+=cl.v*dt; if(cl.x>1.25){cl.x=-0.25;cl.y=0.04+Math.random()*0.26;} }
+  if(state.smoke.length<10 && Math.random()<dt*5){ const b=developedBuildings().filter(l=>l.floors>=2); if(b.length){ const s=b[(Math.random()*b.length)|0];
+    state.smoke.push({gx:s.gx,gy:s.gy,top:s.floors*FLOOR_H+6,life:0,max:2+Math.random()*1.4,dx:(Math.random()-0.5)*5}); } }
+  for(const s of state.smoke) s.life+=dt; state.smoke=state.smoke.filter(s=>s.life<s.max); }
+function nightAmt(){ const f=(state.vClock/52)%1; return 0.42*(1-Math.sin(f*Math.PI)); }
+
+/* ===================== RENDER ===================== */
+function shade(hex,amt){ const n=parseInt(hex.slice(1),16); let r=(n>>16)+amt,g=((n>>8)&255)+amt,b=(n&255)+amt;
   r=Math.max(0,Math.min(255,r));g=Math.max(0,Math.min(255,g));b=Math.max(0,Math.min(255,b));
   return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1); }
-function diamond(x,y,w,h,fill,stroke){ ctx.beginPath();
-  ctx.moveTo(x,y-h/2);ctx.lineTo(x+w/2,y);ctx.lineTo(x,y+h/2);ctx.lineTo(x-w/2,y);ctx.closePath();
+function diamond(x,y,w,h,fill,stroke){ ctx.beginPath();ctx.moveTo(x,y-h/2);ctx.lineTo(x+w/2,y);ctx.lineTo(x,y+h/2);ctx.lineTo(x-w/2,y);ctx.closePath();
   if(fill){ctx.fillStyle=fill;ctx.fill();} if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.stroke();} }
-
-function drawGround(t){
-  const x=isoX(t.gx,t.gy), y=isoY(t.gx,t.gy);
-  // brighter, clearly readable: grass-lots vs lit streets
-  diamond(x,y,TILE_W,TILE_H, t.road?'#2c3a57':'#243a30', 'rgba(35,230,255,.12)');
-  if(t.road){ // street center dashes for life
-    ctx.fillStyle='rgba(255,210,63,.16)'; ctx.fillRect(x-1,y-1,2,2);
+function drawGround(g){ const x=isoX(g.gx,g.gy),y=isoY(g.gx,g.gy);
+  if(g.road){ diamond(x,y,TILE_W,TILE_H,'#2b3346',null);
+    diamond(x,y,TILE_W*0.78,TILE_H*0.78,'#343d52',null);
+    ctx.fillStyle='rgba(255,210,63,.22)'; ctx.fillRect(x-1.2,y-1.2,2.4,2.4);
+  } else { const v=((g.gx*7+g.gy*5)%3); diamond(x,y,TILE_W,TILE_H, v===0?'#27502f':(v===1?'#244a2c':'#2b5634'),'rgba(0,0,0,.10)'); }
+}
+function drawPark(l){ const x=isoX(l.gx,l.gy),y=isoY(l.gx,l.gy);
+  diamond(x,y,TILE_W*0.92,TILE_H*0.92,'#2f6b3a',null);
+  for(const t of [[-8,-2],[6,-5],[2,4]]){ ctx.fillStyle='#6b4a2a'; ctx.fillRect(x+t[0]-1,y+t[1]-2,2,6);
+    ctx.fillStyle='#3D9E55'; ctx.beginPath(); ctx.arc(x+t[0],y+t[1]-5,5,0,7); ctx.fill();
+    ctx.fillStyle='#4fc46b'; ctx.beginPath(); ctx.arc(x+t[0]-1.5,y+t[1]-6.5,2.5,0,7); ctx.fill(); } }
+function drawBuilding(l){
+  const x=isoX(l.gx,l.gy), y=isoY(l.gx,l.gy);
+  const A=ARCH[l.type]; let h=l.floors*FLOOR_H;
+  const popS = l.pop>0 ? 1+Math.sin(l.pop*Math.PI)*0.12*l.pop : 1;   // squash pop
+  h*=popS;
+  const hw=TILE_W/2*0.82, hh=TILE_H/2*0.82;
+  // footprint shadow
+  ctx.fillStyle='rgba(0,0,0,.22)'; diamond(x+3,y+3,TILE_W*0.82,TILE_H*0.82,'rgba(0,0,0,.22)',null);
+  diamond(x,y,TILE_W*0.84,TILE_H*0.84, shade(A.wall,-66),null);   // base
+  // left (dark) + right (light) walls
+  ctx.fillStyle=shade(A.wall,-50); ctx.beginPath();ctx.moveTo(x-hw,y);ctx.lineTo(x,y+hh);ctx.lineTo(x,y+hh-h);ctx.lineTo(x-hw,y-h);ctx.closePath();ctx.fill();
+  ctx.fillStyle=shade(A.wall,-14); ctx.beginPath();ctx.moveTo(x+hw,y);ctx.lineTo(x,y+hh);ctx.lineTo(x,y+hh-h);ctx.lineTo(x+hw,y-h);ctx.closePath();ctx.fill();
+  // windows per floor on both faces
+  const night=nightAmt(), lit = night>0.18 && l.lit;
+  for(let f=0;f<l.floors;f++){ const wy=y - f*FLOOR_H - FLOOR_H*0.55;
+    const wcol = lit ? 'rgba(255,221,120,.85)' : 'rgba(20,30,50,.5)';
+    ctx.fillStyle=lit?wcol:shade(A.wall,-30);
+    // left face windows
+    ctx.fillStyle = (lit && (f+l.gx)%2===0)?wcol:'rgba(0,0,0,.22)'; ctx.fillRect(x-hw*0.62,wy-3,3,5);
+    ctx.fillStyle = (lit && (f+l.gy)%2===0)?wcol:'rgba(0,0,0,.18)'; ctx.fillRect(x-hw*0.30,wy-3,3,5);
+    // right face windows
+    ctx.fillStyle = (lit && (f)%2===0)?wcol:'rgba(255,255,255,.10)'; ctx.fillRect(x+hw*0.30-3,wy-3,3,5);
+    ctx.fillStyle = (lit && (f+1)%2===0)?wcol:'rgba(255,255,255,.08)'; ctx.fillRect(x+hw*0.60-3,wy-3,3,5);
+  }
+  const ty=y-h;
+  // roof + per-type detail
+  if(A.roofType==='peak'){ // pitched roof for houses
+    diamond(x,ty,TILE_W*0.84,TILE_H*0.84, shade(A.roof,-10),null);
+    ctx.fillStyle=A.roof; ctx.beginPath();ctx.moveTo(x-hw,ty);ctx.lineTo(x,ty-10);ctx.lineTo(x+hw,ty);ctx.lineTo(x,ty+hh*0.5);ctx.closePath();ctx.fill();
+    ctx.fillStyle=shade(A.roof,30); ctx.beginPath();ctx.moveTo(x,ty-10);ctx.lineTo(x+hw,ty);ctx.lineTo(x,ty+hh*0.5);ctx.closePath();ctx.fill();
+  } else {
+    diamond(x,ty,TILE_W*0.84,TILE_H*0.84, A.roof, shade(A.roof,28));
+    if(A.roofType==='ac'){ ctx.fillStyle=shade(A.roof,40); ctx.fillRect(x-6,ty-4,5,5); ctx.fillRect(x+3,ty-1,5,5); }
+    if(A.roofType==='tank'){ ctx.fillStyle='#5a6b7a'; ctx.fillRect(x-3,ty-12,6,10); ctx.fillStyle='#7a8b9a'; ctx.fillRect(x-3,ty-12,6,3);
+      ctx.strokeStyle='#33414f'; ctx.beginPath();ctx.moveTo(x,ty-2);ctx.lineTo(x,ty+2);ctx.stroke();
+      // antenna
+      ctx.strokeStyle='#8fb6c9'; ctx.beginPath();ctx.moveTo(x+5,ty-2);ctx.lineTo(x+5,ty-14);ctx.stroke(); ctx.fillStyle='#FF4D6D';ctx.beginPath();ctx.arc(x+5,ty-14,1.6,0,7);ctx.fill(); }
+    if(A.roofType==='sign'){ const lit2=nightAmt()>0.15; ctx.fillStyle=lit2?'#FF5FD2':'#9a4a7a'; ctx.fillRect(x-7,ty-9,14,4);
+      if(lit2){ctx.shadowColor='#FF5FD2';ctx.shadowBlur=6;ctx.fillRect(x-7,ty-9,14,4);ctx.shadowBlur=0;} }
   }
 }
-function drawBuilding(b){
-  const x=isoX(b.gx,b.gy), y=isoY(b.gx,b.gy);
-  const bt=BTYPES[b.type], h=b.floors*TILE_DEPTH, hw=TILE_W/2*0.8, hh=TILE_H/2*0.8;
-  // walls
-  ctx.beginPath();ctx.moveTo(x-hw,y);ctx.lineTo(x,y+hh);ctx.lineTo(x,y+hh-h);ctx.lineTo(x-hw,y-h);ctx.closePath();
-  ctx.fillStyle=shade(bt.col,-52);ctx.fill();
-  ctx.beginPath();ctx.moveTo(x+hw,y);ctx.lineTo(x,y+hh);ctx.lineTo(x,y+hh-h);ctx.lineTo(x+hw,y-h);ctx.closePath();
-  ctx.fillStyle=shade(bt.col,-20);ctx.fill();
-  // windows
-  if(b.lit){ ctx.fillStyle='rgba(255,210,63,.5)';
-    for(let f=0;f<b.floors;f++){ const wy=y-f*TILE_DEPTH-TILE_DEPTH*0.5;
-      ctx.fillRect(x-hw*0.5,wy-2,3,4); ctx.fillRect(x+hw*0.28,wy-2,3,4); } }
-  // roof
-  diamond(x,y-h,TILE_W*0.8,TILE_H*0.8, bt.col, shade(bt.col,40));
-}
-function drawJobMarker(j){
-  const x=isoX(j.gx,j.gy), y=isoY(j.gx,j.gy)-j.floors*TILE_DEPTH-20;
-  const pulse=1+0.22*Math.sin(performance.now()*0.006);
-  const col=URGENCY[j.urgency].col;
+function drawJobPin(j){
+  const x=isoX(j.gx,j.gy), y=isoY(j.gx,j.gy)-j.floors*FLOOR_H-22;
+  const pulse=1+0.2*Math.sin(performance.now()*0.006); const col=URG[j.urg].col;
   ctx.save();ctx.translate(x,y);ctx.scale(pulse,pulse);
-  // glow pin
-  ctx.fillStyle=col; ctx.globalAlpha=0.9;
-  ctx.beginPath();ctx.moveTo(0,8);ctx.lineTo(-7,-4);ctx.lineTo(0,-12);ctx.lineTo(7,-4);ctx.closePath();ctx.fill();
-  ctx.globalAlpha=0.25;ctx.beginPath();ctx.arc(0,-2,13,0,7);ctx.fill();
-  ctx.globalAlpha=1;ctx.fillStyle='#001016';ctx.font='9px "Share Tech Mono"';ctx.textAlign='center';
-  ctx.fillText('!',0,0);
+  ctx.globalAlpha=0.22;ctx.fillStyle=col;ctx.beginPath();ctx.arc(0,-2,14,0,7);ctx.fill();
+  ctx.globalAlpha=1;ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(0,8);ctx.lineTo(-7,-4);ctx.lineTo(0,-13);ctx.lineTo(7,-4);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#001016';ctx.font='9px "Share Tech Mono"';ctx.textAlign='center';ctx.fillText(j.urg==='CRIT'?'!':'$',0,-1);
   ctx.restore();
+  // patience ring under the pin
+  const fr=Math.max(0,j.pat/j.patMax);
+  ctx.strokeStyle=fr>0.5?'#3DFF9E':(fr>0.25?'#FFD23F':'#FF4D6D'); ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(x,y+6,7,-Math.PI/2,-Math.PI/2+fr*Math.PI*2);ctx.stroke();
 }
 function drawVan(v){
   const x=isoX(v.curGx,v.curGy), y=isoY(v.curGx,v.curGy);
   ctx.save();ctx.translate(x,y-6);
-  // body
+  ctx.fillStyle='rgba(0,0,0,.25)';ctx.beginPath();ctx.ellipse(0,7,10,4,0,0,7);ctx.fill();
   ctx.fillStyle=v.color;ctx.strokeStyle='#001016';ctx.lineWidth=1;
   ctx.beginPath();ctx.moveTo(-10,0);ctx.lineTo(0,5);ctx.lineTo(10,0);ctx.lineTo(0,-5);ctx.closePath();ctx.fill();ctx.stroke();
-  ctx.fillStyle=shade(v.color,-40);
-  ctx.beginPath();ctx.moveTo(-10,0);ctx.lineTo(0,5);ctx.lineTo(0,11);ctx.lineTo(-10,6);ctx.closePath();ctx.fill();
+  ctx.fillStyle=shade(v.color,-45);ctx.beginPath();ctx.moveTo(-10,0);ctx.lineTo(0,5);ctx.lineTo(0,11);ctx.lineTo(-10,6);ctx.closePath();ctx.fill();
   ctx.beginPath();ctx.moveTo(10,0);ctx.lineTo(0,5);ctx.lineTo(0,11);ctx.lineTo(10,6);ctx.closePath();ctx.fill();
-  // headlight glow when moving
-  if(v.state==='DRIVING'||v.state==='RETURNING'){ ctx.fillStyle='rgba(255,210,63,.5)';ctx.beginPath();ctx.arc(0,5,3,0,7);ctx.fill(); }
-  // onsite spark
-  if(v.state==='ONSITE'){ const s=Math.sin(performance.now()*0.02)>0;
-    ctx.fillStyle=s?'#FFD23F':'#FF9A3D';ctx.beginPath();ctx.arc(4,-6,2,0,7);ctx.fill(); }
+  if(v.state==='DRIVING'||v.state==='RETURNING'){ ctx.fillStyle='rgba(255,221,120,.6)';ctx.beginPath();ctx.arc(0,5,2.6,0,7);ctx.fill(); }
+  if(v.state==='ONSITE'){ const s=Math.sin(performance.now()*0.02)>0; ctx.fillStyle=s?'#FFD23F':'#FF9A3D';ctx.beginPath();ctx.arc(4,-6,2,0,7);ctx.fill(); }
   ctx.restore();
 }
+function drawTraffic(c){ const x=isoX(c.gx,c.gy),y=isoY(c.gx,c.gy); ctx.save();ctx.translate(x,y);
+  ctx.fillStyle=c.col;ctx.globalAlpha=0.9;ctx.beginPath();ctx.moveTo(-5,0);ctx.lineTo(0,2.5);ctx.lineTo(5,0);ctx.lineTo(0,-2.5);ctx.closePath();ctx.fill();ctx.restore(); }
 function render(){
   ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height);
+  if(shakeAmt>0.2){ ctx.save(); ctx.translate((Math.random()-0.5)*shakeAmt*DPR,(Math.random()-0.5)*shakeAmt*DPR); }
   ctx.save(); ctx.translate(state.cam.x,state.cam.y); ctx.scale(state.cam.zoom,state.cam.zoom);
-  // ground first
-  for(const t of state.tiles) drawGround(t);
-  // depot marker
-  { const x=isoX(DEPOT.gx,DEPOT.gy),y=isoY(DEPOT.gx,DEPOT.gy); diamond(x,y,TILE_W,TILE_H,'rgba(35,230,255,.10)','#23E6FF');
+  // ground (roads + grass), then depot, then back-to-front buildings
+  for(const g of state.grid){ if(g) drawGround(g); }
+  { const x=isoX(DEPOT.gx,DEPOT.gy),y=isoY(DEPOT.gx,DEPOT.gy); diamond(x,y,TILE_W*0.84,TILE_H*0.84,'rgba(35,230,255,.12)','#23E6FF');
     ctx.fillStyle='#23E6FF';ctx.font='8px "Press Start 2P"';ctx.textAlign='center';ctx.fillText('HQ',x,y+3); }
-  // hover highlight
-  if(hover){ const t=state.tiles[hover.gy*GRID+hover.gx];
-    if(t){ const x=isoX(hover.gx,hover.gy),y=isoY(hover.gx,hover.gy);
-      diamond(x,y,TILE_W,TILE_H,'rgba(35,230,255,.14)','rgba(35,230,255,.7)'); } }
-  // ambient traffic on the streets (under buildings)
-  if(state.ambient) for(const c of state.ambient) drawTraffic(c);
-  // buildings back-to-front
-  const sorted=state.buildings.slice().sort((a,b)=>(a.gx+a.gy)-(b.gx+b.gy));
-  for(const b of sorted) drawBuilding(b);
-  // chimney/vent smoke
-  if(state.smoke) for(const s of state.smoke) drawSmoke(s);
-  // job markers
-  for(const j of state.jobs) if(j.state==='OFFERED'||j.state==='ENROUTE'||j.state==='ONSITE') drawJobMarker(j);
-  // vans on top
+  if(hover){ const x=isoX(hover.gx,hover.gy),y=isoY(hover.gx,hover.gy); diamond(x,y,TILE_W,TILE_H,'rgba(35,230,255,.12)','rgba(35,230,255,.6)'); }
+  for(const c of state.ambient) drawTraffic(c);
+  const sorted=state.lots.slice().sort((a,b)=>(a.gx+a.gy)-(b.gx+b.gy));
+  for(const l of sorted){ if(l.park) drawPark(l); else if(l.built) drawBuilding(l); }
+  // smoke
+  for(const s of state.smoke){ const t=s.life/s.max; ctx.globalAlpha=(1-t)*0.26;ctx.fillStyle='#b7c4dc';
+    ctx.beginPath();ctx.arc(isoX(s.gx,s.gy)+s.dx*t,isoY(s.gx,s.gy)-s.top-t*24,3+t*5,0,7);ctx.fill();ctx.globalAlpha=1; }
+  // particles
+  for(const p of state.parts){ ctx.globalAlpha=Math.max(0,p.life/p.max);ctx.fillStyle=p.color;ctx.fillRect(p.x-p.size/2,p.y-p.size/2,p.size,p.size);ctx.globalAlpha=1; }
+  // job pins + vans
+  for(const j of state.jobs){ if(j.state==='OFFERED'||j.state==='ENROUTE'||j.state==='ONSITE') drawJobPin(j); }
   for(const v of state.vans) drawVan(v);
   ctx.restore();
-  // --- screen-space overlays (no camera transform) ---
-  drawClouds();
-  drawNightTint();
+  if(shakeAmt>0.2) ctx.restore();
+  // overlays (screen space)
+  drawClouds(); drawNight();
+  if(state.flash>0){ ctx.fillStyle='rgba(255,255,255,'+(state.flash*0.5).toFixed(3)+')'; ctx.fillRect(0,0,cv.width,cv.height); }
+  drawCoins();
   drawHUD(); drawRail();
 }
-function drawTraffic(c){
-  const x=isoX(c.gx,c.gy), y=isoY(c.gx,c.gy);
-  ctx.save();ctx.translate(x,y);
-  ctx.fillStyle=c.col;ctx.globalAlpha=0.92;
-  ctx.beginPath();ctx.moveTo(-5,0);ctx.lineTo(0,2.5);ctx.lineTo(5,0);ctx.lineTo(0,-2.5);ctx.closePath();ctx.fill();
-  // tail glow
-  ctx.globalAlpha=0.5;ctx.fillStyle='rgba(255,210,63,.6)';ctx.fillRect(-1,-1,2,2);
-  ctx.restore();
-}
-function drawSmoke(s){
-  const t=s.life/s.max;
-  const x=isoX(s.gx,s.gy)+s.dx*t, y=isoY(s.gx,s.gy)-s.top-t*26;
-  ctx.save();ctx.globalAlpha=(1-t)*0.28;ctx.fillStyle='#aebdda';
-  ctx.beginPath();ctx.arc(x,y,3+t*5,0,7);ctx.fill();ctx.restore();
-}
-function drawClouds(){
-  if(!state.clouds)return; const W=cv.width,H=cv.height;
-  for(const cl of state.clouds){ const x=cl.x*W, y=cl.y*H, r=44*cl.s*DPR;
-    ctx.save();ctx.globalAlpha=cl.a;ctx.fillStyle='#cdd8f2';
-    ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.arc(x+r*0.8,y+r*0.2,r*0.7,0,7);ctx.arc(x-r*0.7,y+r*0.15,r*0.6,0,7);ctx.fill();ctx.restore(); }
-}
-function drawNightTint(){
-  const n=nightAmt(); if(n<=0.01)return;
-  ctx.save();ctx.fillStyle='rgba(10,16,40,'+n.toFixed(3)+')';ctx.fillRect(0,0,cv.width,cv.height);ctx.restore();
-}
+function drawClouds(){ const W=cv.width,H=cv.height; for(const cl of state.clouds){ const x=cl.x*W,y=cl.y*H,r=46*cl.s*DPR;
+  ctx.globalAlpha=cl.a;ctx.fillStyle='#cdd8f2';ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.arc(x+r*0.8,y+r*0.2,r*0.7,0,7);ctx.arc(x-r*0.7,y+r*0.15,r*0.6,0,7);ctx.fill();ctx.globalAlpha=1; } }
+function drawNight(){ const n=nightAmt(); if(n<=0.01)return; ctx.fillStyle='rgba(8,14,38,'+n.toFixed(3)+')';ctx.fillRect(0,0,cv.width,cv.height); }
+function drawCoins(){ for(const c of state.coins){ const x=c.x*DPR,y=c.y*DPR; ctx.fillStyle='#FFD23F';ctx.strokeStyle='#a8841a';ctx.lineWidth=1;
+  ctx.beginPath();ctx.arc(x,y,4*DPR,0,7);ctx.fill();ctx.stroke(); ctx.fillStyle='#fff3b0';ctx.beginPath();ctx.arc(x-1.2*DPR,y-1.2*DPR,1.4*DPR,0,7);ctx.fill(); } }
 
-/* ============================================================
-   7. HUD + RAIL (DOM)
-   ============================================================ */
+/* ===================== HUD / RAIL ===================== */
 function money(n){ return '$'+Math.round(n).toLocaleString(); }
 function stars(rep){ const s=Math.round(rep/20); return '★'.repeat(s)+'☆'.repeat(5-s); }
 function drawHUD(){
   const y=state.day, year=1+Math.floor(y/360), mo=Math.floor(y/30)%12, dom=(y%30)+1;
-  const idle=state.vans.filter(v=>v.state==='IDLE').length;
-  const freeCrew=Math.max(0,state.plumbers-busyCrews());
+  const idle=state.vans.filter(v=>v.state==='IDLE').length, freeCrew=Math.max(0,state.plumbers-busyCrews());
+  const comboHtml = state.combo>=2 ? `<div class="stat combo"><span class="k">Combo</span><span class="v">x${state.combo}</span></div>`:'';
   const html=`
-    <div class="stat"><span class="k">Date</span><span class="v">${MONTHS[mo]} ${dom} · Y${year}</span></div>
+    <div class="stat"><span class="k">Date</span><span class="v">${MONTHS[mo]} ${dom}·Y${year}</span></div>
     <div class="stat cash"><span class="k">Cash</span><span class="v" id="vCash">${money(state.cash)}</span></div>
-    <div class="stat networth"><span class="k">Net Worth</span><span class="v" style="color:var(--green)">${money(state.netWorth)}</span></div>
+    <div class="stat nw"><span class="k">Net Worth</span><span class="v">${money(state.netWorth)}</span></div>
     <div class="stat rep"><span class="k">Rep</span><span class="v">${stars(state.rep)}</span></div>
-    <div class="stat van"><span class="k">Crew free</span><span class="v">${freeCrew}/${state.plumbers}</span></div>
-    <div class="stat van"><span class="k">Vans idle</span><span class="v">${idle}/${state.vans.length}</span></div>`;
+    <div class="stat"><span class="k">Crew</span><span class="v">${freeCrew}/${state.plumbers}</span></div>
+    <div class="stat"><span class="k">Vans</span><span class="v">${idle}/${state.vans.length}</span></div>${comboHtml}`;
   const s=document.getElementById('stats'); if(s.dataset.h!==html){ s.innerHTML=html; s.dataset.h=html; }
-  // goal bar
   const pct=Math.max(0,Math.min(100,state.netWorth/GOAL*100));
-  const gf=document.getElementById('goalFill'); if(gf) gf.style.width=pct.toFixed(1)+'%';
-  const ga=document.getElementById('goalAmt'); if(ga) ga.textContent=money(state.netWorth)+' / '+money(GOAL);
-  const gs=document.getElementById('goalSub'); if(gs){
-    const left=GOAL-state.netWorth;
-    gs.textContent = left>0 ? ('$'+left.toLocaleString()+' to go — buy vans & crew to grow faster') : 'GOAL REACHED!';
-  }
-  // shop button affordability hint
-  const sb=document.getElementById('shopBtn'); if(sb) sb.classList.toggle('cant',state.cash<TOOLS.auger.cost && state.cash<VAN_COST);
+  const gf=document.getElementById('goalFill'); if(gf)gf.style.width=pct.toFixed(1)+'%';
+  const ga=document.getElementById('goalAmt'); if(ga)ga.textContent=money(state.netWorth)+' / '+money(GOAL);
+  const gs=document.getElementById('goalSub'); if(gs){ const left=GOAL-state.netWorth;
+    gs.textContent = left>0? '$'+left.toLocaleString()+' to go · grow the city to win' : 'GOAL REACHED!'; }
 }
 let railHash='';
 function drawRail(){
-  const offered=state.jobs.filter(j=>j.state==='OFFERED');
-  const idle=state.vans.some(v=>v.state==='IDLE');
+  const offered=state.jobs.filter(j=>j.state==='OFFERED').sort((a,b)=>a.pat-b.pat);
   document.getElementById('jobCnt').textContent=offered.length;
   let html='';
-  if(!offered.length){ html='<div class="rail-empty">No calls right now.<br>Jobs appear across the city — hang tight.</div>'; }
-  else for(const j of offered){
-    const d=JOBS[j.type], dist=tileDist(DEPOT.gx,DEPOT.gy,j.gx,j.gy);
-    const pct=Math.max(0,(j.acceptLeft/j.acceptMax)*100);
-    html+=`<div class="job u-${j.urgency}" data-id="${j.id}">
-      <div class="row1"><span class="nm"><span class="ic">${d.icon}</span>${d.label}</span><span class="pay">$${d.pay}</span></div>
-      <div class="row2"><span class="utag">${j.urgency}</span><span class="dist">${dist} blocks · ${idle?'click to dispatch':'van busy'}</span></div>
-      <div class="timer" style="width:${pct}%"></div></div>`;
-  }
-  // fleet block
-  const fleet=state.vans.map(v=>{ const busy=v.state!=='IDLE';
-    const what=v.state==='IDLE'?'idle at HQ':v.state==='DRIVING'?'driving to job':v.state==='ONSITE'?'on the job':'returning';
+  if(!offered.length) html='<div class="rail-empty">No open calls.<br>Jobs pop up as the city lives — watch the map.</div>';
+  else for(const j of offered){ const d=JOBS[j.type], dist=tileDist(DEPOT.gx,DEPOT.gy,j.gx,j.gy), fr=Math.max(0,j.pat/j.patMax);
+    const pc=fr>0.5?'#3DFF9E':(fr>0.25?'#FFD23F':'#FF4D6D');
+    html+=`<div class="job u-${j.urg} ${j.urg==='CRIT'?'crit':''}" data-id="${j.id}">
+      <div class="row1"><span class="nm"><span class="ic">${d.ic}</span>${d.label}</span><span class="pay">$${d.pay}</span></div>
+      <div class="row2"><span class="utag">${j.urg}</span><span>${dist} blocks away</span></div>
+      <div class="pat" style="width:${(fr*100).toFixed(0)}%;background:${pc}"></div></div>`; }
+  const fleet=state.vans.map(v=>{ const busy=v.state!=='IDLE'; const what=v.state==='IDLE'?'idle at HQ':v.state==='DRIVING'?'driving →':v.state==='ONSITE'?'working 🔧':'returning';
     return `<div class="vrow"><span class="dot ${busy?'busy':''}"></span>${v.name} — ${what}</div>`; }).join('');
-  const fh=`<div class="rail-h" style="padding:0 0 4px">FLEET</div>${fleet}`;
-  const hash=html+fh;
-  if(railHash!==hash){ document.getElementById('jobList').innerHTML=html;
-    document.getElementById('fleet').innerHTML=fh; railHash=hash;
-    document.querySelectorAll('#jobList .job').forEach(el=>el.onclick=()=>{
-      const j=state.jobs.find(x=>x.id===+el.dataset.id); if(j) dispatch(j); }); }
+  const fh=`<div class="rail-h" style="padding:0 0 4px">FLEET (${state.plumbers} crew)</div>${fleet}`;
+  const h=html+fh;
+  if(railHash!==h){ document.getElementById('jobList').innerHTML=html; document.getElementById('fleet').innerHTML=fh; railHash=h;
+    document.querySelectorAll('#jobList .job').forEach(el=>el.onclick=()=>{ const j=state.jobs.find(x=>x.id===+el.dataset.id); if(j)dispatch(j); }); }
 }
-function flashStat(){ const el=document.getElementById('vCash'); if(!el)return;
-  el.style.color='#fff'; setTimeout(()=>el.style.color='',60); }
+function flashStat(){ const el=document.getElementById('vCash'); if(!el)return; el.style.color='#fff'; setTimeout(()=>el.style.color='',70); }
 
-/* ============================================================
-   8. AUDIO
-   ============================================================ */
+/* ===================== AUDIO ===================== */
 let actx=null;
 function ensureAudio(){ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); }
-function sfx(type){ ensureAudio(); const ac=actx,now=ac.currentTime;
-  const o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);g.gain.value=.1;
-  const beep=(w,f,d,gain)=>{o.type=w;o.frequency.setValueAtTime(f,now);g.gain.value=gain||.1;
-    g.gain.exponentialRampToValueAtTime(.0001,now+d);o.start(now);o.stop(now+d);};
+function sfx(type){ ensureAudio(); const ac=actx,now=ac.currentTime; const o=ac.createOscillator(),g=ac.createGain();o.connect(g);g.connect(ac.destination);g.gain.value=.1;
+  const beep=(w,f,d,gn)=>{o.type=w;o.frequency.setValueAtTime(f,now);g.gain.value=gn||.1;g.gain.exponentialRampToValueAtTime(.0001,now+d);o.start(now);o.stop(now+d);};
   switch(type){
-    case 'cash': o.type='square';[660,880,1320].forEach((f,i)=>o.frequency.setValueAtTime(f,now+i*.06));
-      g.gain.exponentialRampToValueAtTime(.0001,now+.24);o.start(now);o.stop(now+.24);break;
-    case 'dispatch': o.type='triangle';o.frequency.setValueAtTime(330,now);o.frequency.linearRampToValueAtTime(560,now+.12);
-      g.gain.exponentialRampToValueAtTime(.0001,now+.14);o.start(now);o.stop(now+.14);break;
-    case 'jobnew': o.type='sine';[660,990].forEach((f,i)=>o.frequency.setValueAtTime(f,now+i*.1));
-      g.gain.exponentialRampToValueAtTime(.0001,now+.22);o.start(now);o.stop(now+.22);break;
-    case 'alert': o.type='sawtooth';o.frequency.setValueAtTime(220,now);o.frequency.linearRampToValueAtTime(110,now+.4);
-      g.gain.value=.13;g.gain.exponentialRampToValueAtTime(.0001,now+.42);o.start(now);o.stop(now+.42);break;
-    case 'cashout': o.type='sawtooth';o.frequency.setValueAtTime(392,now);o.frequency.linearRampToValueAtTime(196,now+.18);
-      g.gain.value=.1;g.gain.exponentialRampToValueAtTime(.0001,now+.2);o.start(now);o.stop(now+.2);break;
-    case 'buy': o.type='square';[523,784,1047].forEach((f,i)=>o.frequency.setValueAtTime(f,now+i*.05));
-      g.gain.exponentialRampToValueAtTime(.0001,now+.2);o.start(now);o.stop(now+.2);break;
-    case 'win': o.type='square';[523,659,784,1047,1319].forEach((f,i)=>o.frequency.setValueAtTime(f,now+i*.12));
-      g.gain.value=.12;g.gain.exponentialRampToValueAtTime(.0001,now+.75);o.start(now);o.stop(now+.75);break;
-    case 'lose': o.type='sawtooth';[330,262,196,131].forEach((f,i)=>o.frequency.setValueAtTime(f,now+i*.16));
-      g.gain.value=.13;g.gain.exponentialRampToValueAtTime(.0001,now+.7);o.start(now);o.stop(now+.7);break;
-    case 'error': beep('square',140,.12,.1);break;
-    case 'blip': beep('square',520,.06,.07);break;
-    default: beep('square',440,.1);
+    case 'cash':o.type='square';[660,880,1320].forEach((f,i)=>o.frequency.setValueAtTime(f,now+i*.05));g.gain.exponentialRampToValueAtTime(.0001,now+.22);o.start(now);o.stop(now+.22);break;
+    case 'combo':o.type='square';[784,988,1319,1568].forEach((f,i)=>o.frequency.setValueAtTime(f,now+i*.05));g.gain.value=.13;g.gain.exponentialRampToValueAtTime(.0001,now+.28);o.start(now);o.stop(now+.28);break;
+    case 'dispatch':o.type='triangle';o.frequency.setValueAtTime(330,now);o.frequency.linearRampToValueAtTime(560,now+.12);g.gain.exponentialRampToValueAtTime(.0001,now+.14);o.start(now);o.stop(now+.14);break;
+    case 'jobnew':o.type='sine';[660,990].forEach((f,i)=>o.frequency.setValueAtTime(f,now+i*.09));g.gain.exponentialRampToValueAtTime(.0001,now+.2);o.start(now);o.stop(now+.2);break;
+    case 'alert':o.type='sawtooth';o.frequency.setValueAtTime(220,now);o.frequency.linearRampToValueAtTime(110,now+.4);g.gain.value=.13;g.gain.exponentialRampToValueAtTime(.0001,now+.42);o.start(now);o.stop(now+.42);break;
+    case 'expire':o.type='sawtooth';o.frequency.setValueAtTime(170,now);o.frequency.linearRampToValueAtTime(70,now+.34);g.gain.value=.12;g.gain.exponentialRampToValueAtTime(.0001,now+.35);o.start(now);o.stop(now+.35);break;
+    case 'cashout':o.type='sawtooth';o.frequency.setValueAtTime(392,now);o.frequency.linearRampToValueAtTime(196,now+.18);g.gain.value=.1;g.gain.exponentialRampToValueAtTime(.0001,now+.2);o.start(now);o.stop(now+.2);break;
+    case 'buy':o.type='square';[523,784,1047].forEach((f,i)=>o.frequency.setValueAtTime(f,now+i*.05));g.gain.exponentialRampToValueAtTime(.0001,now+.2);o.start(now);o.stop(now+.2);break;
+    case 'win':o.type='square';[523,659,784,1047,1319].forEach((f,i)=>o.frequency.setValueAtTime(f,now+i*.12));g.gain.value=.12;g.gain.exponentialRampToValueAtTime(.0001,now+.75);o.start(now);o.stop(now+.75);break;
+    case 'lose':o.type='sawtooth';[330,262,196,131].forEach((f,i)=>o.frequency.setValueAtTime(f,now+i*.16));g.gain.value=.13;g.gain.exponentialRampToValueAtTime(.0001,now+.7);o.start(now);o.stop(now+.7);break;
+    case 'error':beep('square',140,.12,.1);break; case 'blip':beep('square',520,.05,.06);break; default:beep('square',440,.1);
   }
 }
 
-/* ============================================================
-   9. UI helpers
-   ============================================================ */
-function toast(msg,kind){ const el=document.createElement('div');el.className='toast '+(kind||'');el.textContent=msg;
-  document.getElementById('toasts').appendChild(el);
+/* ===================== UI helpers ===================== */
+function toast(msg,kind){ const el=document.createElement('div');el.className='toast '+(kind||'');el.textContent=msg;document.getElementById('toasts').appendChild(el);
   setTimeout(()=>{el.style.transition='opacity .4s';el.style.opacity='0';setTimeout(()=>el.remove(),400);},2400); }
-function cashPop(sx,sy,text,color){ const el=document.createElement('div');el.className='fpop';el.textContent=text;
-  el.style.left=sx+'px';el.style.top=sy+'px';el.style.color=color||'#3DFF9E';
+function cashPop(sx,sy,text,color){ const el=document.createElement('div');el.className='fpop';el.textContent=text;el.style.left=sx+'px';el.style.top=sy+'px';el.style.color=color||'#3DFF9E';
   document.body.appendChild(el);setTimeout(()=>el.remove(),1000); }
 
-/* ============================================================
-   9b. SHOP — where cash becomes growth
-   ============================================================ */
-function spawnVanAtDepot(){
-  const colors=['#23E6FF','#3DFF9E','#FFD23F','#FF9A3D','#B26BFF','#FF5FD2'];
-  const id=state.vans.length+1, off=(id%3);
-  state.vans.push({id,name:'Van '+id,state:'IDLE',gx:DEPOT.gx+off,gy:DEPOT.gy,curGx:DEPOT.gx+off,curGy:DEPOT.gy,
-    srcGx:DEPOT.gx+off,srcGy:DEPOT.gy,job:null,travel:0,travelDays:0,work:0,color:colors[(id-1)%colors.length]});
-}
-const SHOP_ITEMS=[
-  {id:'van', icon:'\u{1F690}', nm:()=>'Buy Van', ds:()=>'Run more jobs at once · holds '+state.vans.length+'/'+state.hqCap,
-   cost:()=>VAN_COST, can:()=>state.vans.length<state.hqCap, why:()=>state.vans.length>=state.hqCap?'HQ full — upgrade HQ':'',
-   buy:()=>{ spawnVanAtDepot(); }},
-  {id:'plumber', icon:'\u{1F477}', nm:()=>'Hire Plumber', ds:()=>'+1 crew (a van needs a crew to work) · $'+PLUMBER_WAGE+'/wk',
-   cost:()=>0, costLabel:()=>'$'+PLUMBER_WAGE+'/wk', can:()=>true, recurring:true,
-   buy:()=>{ state.plumbers++; }},
-  {id:'hq', icon:'\u{1F3E0}', nm:()=>'Upgrade HQ', ds:()=>'+'+HQ_ADD+' van slots (now '+state.hqCap+')',
-   cost:()=>HQ_COST, can:()=>true, buy:()=>{ state.hqCap+=HQ_ADD; }},
+/* ===================== SHOP ===================== */
+function spawnVanAtDepot(){ const colors=['#23E6FF','#3DFF9E','#FFD23F','#FF9A3D','#B26BFF','#FF5FD2'];
+  const id=state.vans.length+1, off=id%3; state.vans.push({id,name:'Van '+id,state:'IDLE',gx:DEPOT.gx+off,gy:DEPOT.gy,curGx:DEPOT.gx+off,curGy:DEPOT.gy,srcGx:DEPOT.gx+off,srcGy:DEPOT.gy,job:null,travel:0,travelDays:0,work:0,color:colors[(id-1)%colors.length]}); }
+const SHOP=[
+  {id:'van',ic:'\u{1F690}',nm:()=>'Buy Van',ds:()=>'Serve more jobs at once · holds '+state.vans.length+'/'+state.hqCap,cost:()=>VAN_COST,can:()=>state.vans.length<state.hqCap,why:()=>state.vans.length>=state.hqCap?'HQ full — upgrade it':'',buy:()=>spawnVanAtDepot()},
+  {id:'plumber',ic:'\u{1F477}',nm:()=>'Hire Plumber',ds:()=>'+1 crew (a van needs a crew) · $'+PLUMBER_WAGE+'/wk',cost:()=>0,costLabel:()=>'$'+PLUMBER_WAGE+'/wk',can:()=>true,buy:()=>state.plumbers++},
+  {id:'hq',ic:'\u{1F3E2}',nm:()=>'Upgrade HQ',ds:()=>'+'+HQ_ADD+' van slots (now '+state.hqCap+')',cost:()=>HQ_COST,can:()=>true,buy:()=>state.hqCap+=HQ_ADD},
 ];
-function toolItems(){ return Object.keys(TOOLS).map(id=>({ id:'tool_'+id, icon:TOOLS[id].icon, nm:()=>TOOLS[id].name,
-  ds:()=>TOOLS[id].desc, cost:()=>TOOLS[id].cost, owned:()=>!!state.toolsOwned[id], can:()=>!state.toolsOwned[id],
-  buy:()=>{ state.toolsOwned[id]=true; state.toolSpeed*=TOOLS[id].mult; } })); }
+function toolItems(){ return Object.keys(TOOLS).map(id=>({id:'tool_'+id,ic:TOOLS[id].ic,nm:()=>TOOLS[id].name,ds:()=>TOOLS[id].desc,cost:()=>TOOLS[id].cost,owned:()=>!!state.toolsOwned[id],can:()=>!state.toolsOwned[id],buy:()=>{state.toolsOwned[id]=true;state.toolSpeed*=TOOLS[id].mult;}})); }
 function renderShop(){
-  document.getElementById('shopCash').innerHTML='Cash on hand: <b>'+money(state.cash)+'</b> &nbsp;·&nbsp; Net worth '+money(state.netWorth);
-  const items=SHOP_ITEMS.concat(toolItems());
-  let html='';
-  for(const it of items){
-    const owned=it.owned&&it.owned();
-    const recurring=it.recurring;
-    const cost=it.cost();
-    const afford=recurring?true:state.cash>=cost;
-    const canBuy=it.can()&&afford&&!owned;
-    const costTxt=owned?'OWNED':(it.costLabel?it.costLabel():'-'+money(cost));
-    const cls=owned?'owned':(canBuy?'':'cant');
-    const why=!owned&&!afford?'need '+money(cost):(it.why&&it.why())||'';
-    html+=`<div class="shop-item"><span class="ic">${it.icon}</span>
-      <div class="mid"><div class="nm">${it.nm()}</div><div class="ds">${it.ds()}${why?' · <span style="color:var(--red)">'+why+'</span>':''}</div></div>
-      <div class="buy ${cls}" data-id="${it.id}">${costTxt}</div></div>`;
-  }
+  document.getElementById('shopCash').innerHTML='Cash: <b>'+money(state.cash)+'</b> · Net worth '+money(state.netWorth)+' · Rep '+stars(state.rep);
+  const items=SHOP.concat(toolItems()); let html='';
+  for(const it of items){ const owned=it.owned&&it.owned(); const cost=it.cost(); const afford=it.costLabel?true:state.cash>=cost; const can=it.can()&&afford&&!owned;
+    const costTxt=owned?'OWNED':(it.costLabel?it.costLabel():'-'+money(cost)); const cls=owned?'owned':(can?'':'cant');
+    const why=!owned&&!afford?'need '+money(cost):((it.why&&it.why())||'');
+    html+=`<div class="shop-item"><span class="ic">${it.ic}</span><div class="mid"><div class="nm">${it.nm()}</div><div class="ds">${it.ds()}${why?' · <span style="color:var(--red)">'+why+'</span>':''}</div></div><div class="buy ${cls}" data-id="${it.id}">${costTxt}</div></div>`; }
   document.getElementById('shopItems').innerHTML=html;
-  const b=weeklyBills();
-  document.getElementById('shopBills').innerHTML='⚠ Weekly bills: <b>-$'+b.total.toLocaleString()+'</b> '
-    +'(payroll $'+b.payroll.toLocaleString()+' · fuel $'+b.fuel+' · rent $'+b.rent+'). Earn more than you burn!';
-  document.querySelectorAll('#shopItems .buy').forEach(el=>el.onclick=()=>{
-    const it=items.find(x=>x.id===el.dataset.id); if(!it) return;
-    const owned=it.owned&&it.owned();
-    if(owned) return;
-    const cost=it.cost();
-    if(!it.recurring && state.cash<cost){ sfx('error'); toast('Not enough cash for '+it.nm(),'warn'); return; }
-    if(!it.can()){ sfx('error'); toast((it.why&&it.why())||'Can\'t buy that yet','warn'); return; }
-    state.cash-=cost; it.buy(); sfx('buy'); flashStat('cash'); recalcNetWorth();
-    toast('Bought: '+it.nm(),'good'); renderShop();
-  });
-}
+  const b=weeklyBills(); document.getElementById('shopBills').innerHTML='⚠ Weekly bills: <b>-$'+b.total.toLocaleString()+'</b> (payroll $'+b.payroll+' · fuel $'+b.fuel+' · rent $'+b.rent+'). Keep crews busy!';
+  document.querySelectorAll('#shopItems .buy').forEach(el=>el.onclick=()=>{ const it=items.find(x=>x.id===el.dataset.id); if(!it)return; const owned=it.owned&&it.owned(); if(owned)return;
+    const cost=it.cost(); if(!it.costLabel&&state.cash<cost){sfx('error');toast('Not enough cash for '+it.nm(),'warn');return;} if(!it.can()){sfx('error');toast((it.why&&it.why())||'Can\'t buy yet','warn');return;}
+    state.cash-=cost; it.buy(); sfx('buy'); flashStat('cash'); recalcNetWorth(); toast('Bought: '+it.nm(),'good'); renderShop(); }); }
 function openShop(){ if(state.over)return; renderShop(); document.getElementById('shopScrim').classList.add('show'); sfx('blip'); }
 function closeShop(){ document.getElementById('shopScrim').classList.remove('show'); }
-
-/* end screen */
-function showEndScreen(kind){
-  const t=document.getElementById('endTitle'), b=document.getElementById('endBody');
-  t.className=kind==='WIN'?'win':'lose';
-  t.textContent=kind==='WIN'?'YOU WIN!':'GAME OVER';
-  const yrs=(state.day/360).toFixed(1);
+function showEndScreen(kind){ const t=document.getElementById('endTitle'),b=document.getElementById('endBody');
+  t.className=kind==='WIN'?'win':'lose'; t.textContent=kind==='WIN'?'YOU WIN!':'GAME OVER'; const yrs=(state.day/360).toFixed(1);
   b.innerHTML = kind==='WIN'
-    ? `You built a plumbing empire worth <b>${money(state.netWorth)}</b>!<br>`
-      +`<b>${state.jobsDone}</b> jobs done · <b>${state.vans.length}</b> vans · <b>${state.plumbers}</b> crew · in <b>${yrs}</b> years.`
-    : `Johnson Bros went bust — couldn't cover the bills.<br>`
-      +`You reached <b>${money(state.netWorth)}</b> net worth · <b>${state.jobsDone}</b> jobs · in <b>${yrs}</b> years.<br>`
-      +`Tip: don't hire crew or buy vans you can't keep busy — idle vans still cost money.`;
-  document.getElementById('endScrim').classList.add('show');
-}
+    ? `You built a plumbing empire worth <b>${money(state.netWorth)}</b>!<br><b>${state.jobsDone}</b> jobs · <b>${state.vans.length}</b> vans · <b>${state.plumbers}</b> crew · in <b>${yrs}</b> yrs.`
+    : `Johnson Bros went bust.<br>Reached <b>${money(state.netWorth)}</b> · <b>${state.jobsDone}</b> jobs done · <b>${state.expired}</b> missed · in <b>${yrs}</b> yrs.<br>Tip: don't hire crew/vans you can't keep busy — idle costs money.`;
+  document.getElementById('endScrim').classList.add('show'); }
 
-/* ============================================================
-   10. INPUT
-   ============================================================ */
+/* ===================== INPUT ===================== */
 let hover=null,dragging=false,dragMoved=false,lastP=null;
 function evtPos(e){ const r=cv.getBoundingClientRect();const p=e.touches?e.touches[0]:e;return {x:p.clientX-r.left,y:p.clientY-r.top}; }
-cv.addEventListener('mousemove',e=>{ const p=evtPos(e);const tl=screenToTile(p.x,p.y);
-  hover={gx:Math.floor(tl.gx),gy:Math.floor(tl.gy)};
+cv.addEventListener('mousemove',e=>{ const p=evtPos(e),tl=screenToTile(p.x,p.y); hover={gx:Math.floor(tl.gx),gy:Math.floor(tl.gy)};
   if(hover.gx<0||hover.gy<0||hover.gx>=GRID||hover.gy>=GRID)hover=null;
   if(dragging&&lastP){state.cam.x+=(p.x-lastP.x)*DPR;state.cam.y+=(p.y-lastP.y)*DPR;lastP=p;dragMoved=true;} });
-function screenToTile(sx,sy){ const w=screenToWorld(sx,sy);return worldToTile(w.x,w.y); }
 cv.addEventListener('mousedown',e=>{dragging=true;dragMoved=false;lastP=evtPos(e);cv.classList.add('dragging');});
-window.addEventListener('mouseup',e=>{ if(dragging&&!dragMoved){const p=evtPos(e);onTileClick(screenToTile(p.x,p.y));}
-  dragging=false;cv.classList.remove('dragging'); });
+window.addEventListener('mouseup',e=>{ if(dragging&&!dragMoved){const p=evtPos(e);onTileClick(screenToTile(p.x,p.y));} dragging=false;cv.classList.remove('dragging'); });
 cv.addEventListener('wheel',e=>{e.preventDefault();zoomAt(evtPos(e),e.deltaY<0?1.12:0.89);},{passive:false});
 let pinchD=0;
-cv.addEventListener('touchstart',e=>{ if(e.touches.length===1){dragging=true;dragMoved=false;lastP=evtPos(e);}
-  else if(e.touches.length===2){pinchD=tdist(e);} },{passive:false});
-cv.addEventListener('touchmove',e=>{e.preventDefault();
-  if(e.touches.length===2){const d=tdist(e);if(pinchD)zoomAt(tmid(e),d/pinchD);pinchD=d;}
+cv.addEventListener('touchstart',e=>{ if(e.touches.length===1){dragging=true;dragMoved=false;lastP=evtPos(e);} else if(e.touches.length===2){pinchD=tdist(e);} },{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault(); if(e.touches.length===2){const d=tdist(e);if(pinchD)zoomAt(tmid(e),d/pinchD);pinchD=d;}
   else if(dragging&&lastP){const p=evtPos(e);state.cam.x+=(p.x-lastP.x)*DPR;state.cam.y+=(p.y-lastP.y)*DPR;lastP=p;dragMoved=true;} },{passive:false});
 cv.addEventListener('touchend',e=>{ if(dragging&&!dragMoved&&lastP)onTileClick(screenToTile(lastP.x,lastP.y));dragging=false;pinchD=0; });
 function tdist(e){const a=e.touches[0],b=e.touches[1];return Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);}
 function tmid(e){const r=cv.getBoundingClientRect(),a=e.touches[0],b=e.touches[1];return{x:(a.clientX+b.clientX)/2-r.left,y:(a.clientY+b.clientY)/2-r.top};}
-function zoomAt(p,f){ const before=screenToWorld(p.x,p.y);
-  state.cam.zoom=Math.max(state.cam.minZoom,Math.min(state.cam.maxZoom,state.cam.zoom*f));
+function zoomAt(p,f){ const before=screenToWorld(p.x,p.y); state.cam.zoom=Math.max(state.cam.minZoom,Math.min(state.cam.maxZoom,state.cam.zoom*f));
   const after=screenToWorld(p.x,p.y); state.cam.x+=(after.x-before.x)*state.cam.zoom; state.cam.y+=(after.y-before.y)*state.cam.zoom; }
 function onTileClick(tl){ const gx=Math.floor(tl.gx),gy=Math.floor(tl.gy);
-  const j=state.jobs.find(x=>x.gx===gx&&x.gy===gy&&x.state==='OFFERED');
-  if(j){ dispatch(j); return; }
-  sfx('blip'); }
+  // pick nearest offered job to the click (pins float above the tile)
+  let best=null,bd=2.2; for(const j of state.jobs){ if(j.state!=='OFFERED')continue; const d=Math.hypot(j.gx-tl.gx,j.gy-tl.gy); if(d<bd){bd=d;best=j;} }
+  if(best){ dispatch(best); return; } sfx('blip'); }
 
-/* ============================================================
-   11. TIME CONTROLS
-   ============================================================ */
+/* ===================== TIME + LOOP ===================== */
 function setSpeed(i){ state.speed=i; ['t0','t1','t2','t3'].forEach((id,k)=>document.getElementById(id).classList.toggle('on',k===i)); }
 ['t0','t1','t2','t3'].forEach((id,k)=>document.getElementById(id).onclick=()=>{setSpeed(k);sfx('blip');});
-window.addEventListener('keydown',e=>{ if(e.code==='Space'){e.preventDefault();setSpeed(state.speed===0?1:0);}
-  if(e.code==='Escape')closeShop();
-  if(e.code>='Digit1'&&e.code<='Digit4')setSpeed(+e.code[5]-1); });
-
-// shop + end-screen wiring
+window.addEventListener('keydown',e=>{ if(e.code==='Space'){e.preventDefault();setSpeed(state.speed===0?1:0);} if(e.code==='Escape')closeShop(); if(e.code>='Digit1'&&e.code<='Digit4')setSpeed(+e.code[5]-1); });
 document.getElementById('shopBtn').onclick=openShop;
 document.getElementById('shopClose').onclick=closeShop;
 document.getElementById('shopScrim').addEventListener('click',e=>{ if(e.target.id==='shopScrim')closeShop(); });
 document.getElementById('endAgain').onclick=()=>location.reload();
-
-/* ============================================================
-   12. GAME LOOP
-   ============================================================ */
-let lastT=0, crashed=false, STILL=false;
-function showError(e){
-  crashed=true;
-  let bar=document.getElementById('errbar');
-  if(!bar){ bar=document.createElement('div'); bar.id='errbar';
-    bar.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:200;background:#2a0010;color:#FF4D6D;'
-      +'font:12px "Share Tech Mono";padding:10px 14px;border-top:2px solid #FF4D6D;white-space:pre-wrap;max-height:40vh;overflow:auto';
-    document.body.appendChild(bar); }
-  bar.textContent='⚠ Pipe Tycoon error (loop stopped):\n'+(e&&e.stack?e.stack:e);
-}
-function frame(t){ if(STILL){ return; }   // frozen for screenshot capture
-  if(!lastT)lastT=t; const dt=t-lastT; lastT=t;
-  try{
-    if(state.started) updateAmbient(dt);   // ambient life runs on REAL time (alive even when paused)
+let lastT=0;
+function showError(e){ let bar=document.getElementById('errbar'); if(!bar){ bar=document.createElement('div');bar.id='errbar';
+  bar.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:200;background:#2a0010;color:#FF4D6D;font:12px "Share Tech Mono";padding:10px 14px;border-top:2px solid #FF4D6D;white-space:pre-wrap;max-height:40vh;overflow:auto';document.body.appendChild(bar);}
+  bar.textContent='⚠ Pipe Tycoon error:\n'+(e&&e.stack?e.stack:e); }
+function frame(t){ if(STILL)return; if(!lastT)lastT=t; let dt=t-lastT; lastT=t;
+  if(hitStop>0){ hitStop-=dt; dt=0; }
+  try{ if(state.started){ updateAmbient(dt); updateJuice(dt); }
     const mult=SPEEDS[state.speed];
-    if(state.started&&mult>0){
-      const dDays=Math.min(0.5,(dt*mult)/DAY_MS);   // clamp dt spikes (tab refocus)
-      const prevDay=state.day;
-      state.dayF+=dDays; state.day=Math.floor(state.dayF);
-      stepSim(dDays);
-      for(let d=prevDay; d<state.day; d++) onNewDay();
-    }
+    if(state.started&&mult>0){ const dDays=Math.min(0.5,(dt*mult)/DAY_MS); const prev=state.day; state.dayF+=dDays; state.day=Math.floor(state.dayF); stepSim(dDays); for(let d=prev;d<state.day;d++)onNewDay(); }
     render();
-  }catch(e){ showError(e); console.error(e); return; }   // surface, don't blank
-  requestAnimationFrame(frame);
-}
+  }catch(e){ showError(e); console.error(e); return; }
+  requestAnimationFrame(frame); }
 window.addEventListener('error',ev=>showError(ev.error||ev.message));
 
-/* ============================================================
-   13. BOOT
-   ============================================================ */
-function boot(){ resize(); genCity(); state.cam.zoom=1.15; centerCamera(); state.started=true; setSpeed(1);
-  state.lastBillDay=0; recalcNetWorth();
+/* ===================== BOOT ===================== */
+function boot(){ resize(); genCity(); state.cam.zoom=1.1; centerCamera(); state.started=true; setSpeed(1); state.lastBillDay=0; recalcNetWorth();
   document.getElementById('boot').style.display='none'; ensureAudio(); sfx('cash');
-  toast('Earn cash → open the SHOP (top right) to buy vans & crew → grow → reach $100k!','good');
-  // seed several starter jobs so the board is busy from second one
-  for(let i=0;i<4;i++) spawnJob();
-}
+  toast('Your town needs a plumber! Click job pins fast — patience runs out. Grow with the SHOP.','good');
+  for(let i=0;i<3;i++) spawnJob(); }
 document.getElementById('bootStart').onclick=boot;
-try{ document.getElementById('buildStamp').textContent='build '+BUILD; }catch(e){}
+try{ }catch(e){}
 resize(); genCity(); centerCamera(); requestAnimationFrame(frame);
-console.log('PIPE TYCOON '+BUILD+' ready · buildings='+state.buildings.length);
+console.log('PIPE TYCOON '+BUILD+' ready · buildings='+developedBuildings().length);
 
-/* ---- debug: ?still=N boots, advances N sim-days, renders ONE frame, then
-   FREEZES the rAF loop so a GPU-limited headless browser can screenshot it. ---- */
-(function(){ try{
-  const m=(location.search||'').match(/still=(\d+)/); if(!m) return;
-  const days=+m[1]||0;
-  boot();
-  // fast-forward the requested number of in-game days deterministically
-  for(let d=0; d<days; d++){ stepSim(1); onNewDay(); state.dayF+=1; state.day=Math.floor(state.dayF); }
-  recalcNetWorth();
-  render();
-  state.speed=0;                 // pause sim
-  STILL=true;                    // frame() will early-return (set below)
-  document.title='STILL · '+BUILD;
+/* debug: ?still=N — boot, advance N days, render one frame, freeze for screenshot */
+(function(){ try{ const m=(location.search||'').match(/still=(\d+)/); if(!m)return; const days=+m[1]||0;
+  boot(); for(let d=0;d<days;d++){ stepSim(1); onNewDay(); state.dayF+=1; state.day=Math.floor(state.dayF); } recalcNetWorth();
+  updateAmbient(16); updateJuice(16); render(); state.speed=0; STILL=true; document.title='STILL · '+BUILD;
 }catch(e){ showError(e); } })();
 </script>
 </body>
