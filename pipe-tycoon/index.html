@@ -831,7 +831,7 @@ document.getElementById('endAgain').onclick=()=>location.reload();
 /* ============================================================
    12. GAME LOOP
    ============================================================ */
-let lastT=0, crashed=false;
+let lastT=0, crashed=false, STILL=false;
 function showError(e){
   crashed=true;
   let bar=document.getElementById('errbar');
@@ -841,7 +841,8 @@ function showError(e){
     document.body.appendChild(bar); }
   bar.textContent='⚠ Pipe Tycoon error (loop stopped):\n'+(e&&e.stack?e.stack:e);
 }
-function frame(t){ if(!lastT)lastT=t; const dt=t-lastT; lastT=t;
+function frame(t){ if(STILL){ return; }   // frozen for screenshot capture
+  if(!lastT)lastT=t; const dt=t-lastT; lastT=t;
   try{
     if(state.started) updateAmbient(dt);   // ambient life runs on REAL time (alive even when paused)
     const mult=SPEEDS[state.speed];
@@ -872,6 +873,21 @@ document.getElementById('bootStart').onclick=boot;
 try{ document.getElementById('buildStamp').textContent='build '+BUILD; }catch(e){}
 resize(); genCity(); centerCamera(); requestAnimationFrame(frame);
 console.log('PIPE TYCOON '+BUILD+' ready · buildings='+state.buildings.length);
+
+/* ---- debug: ?still=N boots, advances N sim-days, renders ONE frame, then
+   FREEZES the rAF loop so a GPU-limited headless browser can screenshot it. ---- */
+(function(){ try{
+  const m=(location.search||'').match(/still=(\d+)/); if(!m) return;
+  const days=+m[1]||0;
+  boot();
+  // fast-forward the requested number of in-game days deterministically
+  for(let d=0; d<days; d++){ stepSim(1); onNewDay(); state.dayF+=1; state.day=Math.floor(state.dayF); }
+  recalcNetWorth();
+  render();
+  state.speed=0;                 // pause sim
+  STILL=true;                    // frame() will early-return (set below)
+  document.title='STILL · '+BUILD;
+}catch(e){ showError(e); } })();
 </script>
 </body>
 </html>
