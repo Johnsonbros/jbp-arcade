@@ -120,7 +120,7 @@ function spawnBoss(){
 /* ---------- projection: depth z (1 far → 0 lens) ---------- */
 function proj(z){ return FOCAL/(z*FOCAL*1.55+FOCAL*0.32); }   // scale factor, grows as z→0
 function clogScreen(o){ const s=proj(o.z); const rr=o.r*pipeR*s;
-  return { x:CX+Math.cos(o.a)*rr, y:CY+Math.sin(o.a)*rr, s, size:o.size*s }; }
+  return { x:CX+Math.cos(o.a)*rr, y:CY+Math.sin(o.a)*rr, s, size:o.sz*s }; }
 
 /* ---------- firing ---------- */
 function tryHit(dt){
