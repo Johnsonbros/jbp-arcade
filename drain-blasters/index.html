@@ -428,7 +428,8 @@ function setEnd(kind){ if(state.phase!=='PLAY')return; state.phase=kind; state.f
   document.getElementById('endBody').innerHTML = kind==='WIN'
     ? `You reached <b>WAVE ${state.wave}</b>, blasted <b>${state.kills}</b> clogs and crushed the Master Clog!<br>Score: <b>${state.score}</b>.`
     : `Backed up on <b>WAVE ${state.wave}</b> · <b>${state.kills}</b> clogs blasted · Score <b>${state.score}</b>.`;
-  document.getElementById('endHi').textContent = (newHi?'★ NEW HIGH SCORE ':'HI ')+String(HI).padStart(6,'0');
+  if(newHi){ document.getElementById('endBody').innerHTML += '<br><span style="color:#ffd23f">★ NEW HIGH SCORE!</span>'; }
+  { const eh=document.getElementById('endHi'); if(eh) eh.textContent=(newHi?'★ NEW HIGH SCORE ':'HI ')+String(HI).padStart(6,'0'); }
   document.getElementById('ctaBig').textContent = kind==='WIN'?'WANT THIS DONE FOR REAL?':'CLOGGED FOR REAL?';
   // leaderboard: offer initial entry if top 5
   if(qualifies(state.score)){ pendingRow={sc:state.score, wv:state.wave, nm:'AAA'}; ini=['A','A','A'];
