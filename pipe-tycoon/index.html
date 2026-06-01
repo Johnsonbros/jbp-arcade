@@ -144,14 +144,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg-void);color
 </div>
 <script>
 'use strict';
-const BUILD='v0.5 · 2026-06-01 · juice+grow';
+const BUILD='v0.6 · 2026-06-01 · paced';
 console.log('PIPE TYCOON '+BUILD+' loading…');
 
 /* ===================== CONSTANTS ===================== */
 const TILE_W=64, TILE_H=32, FLOOR_H=14;
 const GRID=26, CENTER=GRID/2;
-const DAY_MS=1100, SPEEDS=[0,1,2,4];
-const VAN_TILES_PER_DAY=9;     // slower travel → a van clears fewer jobs/day → capacity is scarce
+const DAY_MS=2600, SPEEDS=[0,1,2,4];   // a day ≈ 2.6s @1x — slow enough to read & react
+const VAN_TILES_PER_DAY=11;    // van trip stays watchable at the slower clock
 const DEPOT={gx:13,gy:13};
 const GOAL=150000;
 const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -169,7 +169,7 @@ const JOBS={
   main:   {label:'WATER MAIN BREAK',ic:'\u{1F6A8}', pay:1800,parts:320,dur:1.3, urg:'CRIT', repReq:35},
 };
 // patience (game-days before the customer gives up) — emergencies are brutal
-const URG={ LOW:{pat:9,col:'#7E8DB5'}, MED:{pat:6,col:'#23E6FF'}, HIGH:{pat:3.5,col:'#FF9A3D'}, CRIT:{pat:2.2,col:'#FF4D6D'} };
+const URG={ LOW:{pat:16,col:'#7E8DB5'}, MED:{pat:11,col:'#23E6FF'}, HIGH:{pat:7,col:'#FF9A3D'}, CRIT:{pat:4.5,col:'#FF4D6D'} };
 
 // building archetypes — chosen by distance from downtown; floors grow with city tier
 const ARCH={
@@ -196,14 +196,14 @@ const state={
 };
 
 /* shop catalog */
-const PAY_MULT=1.15;
-const VAN_COST=14000, VAN_RESALE=9000, HQ_COST=9000, HQ_ADD=2, PLUMBER_WAGE=900;
+const PAY_MULT=1.45;
+const VAN_COST=14000, VAN_RESALE=8000, HQ_COST=9000, HQ_ADD=2, PLUMBER_WAGE=1050;
 const TOOLS={
   auger: {name:'Power Auger',  ic:'\u{1F527}', cost:1700, desc:'Jobs 22% faster',          mult:0.78},
   press: {name:'ProPress Kit', ic:'\u{2699}',  cost:3400, desc:'Jobs 16% faster (stacks)', mult:0.84},
   jetter:{name:'Hydro-Jetter', ic:'\u{1F6BF}', cost:5600, desc:'Jobs 30% faster (stacks)', mult:0.70},
 };
-function weeklyBills(){ const payroll=state.plumbers*PLUMBER_WAGE, fuel=state.vans.length*55, rent=180+Math.max(0,state.hqCap-2)*90;
+function weeklyBills(){ const payroll=state.plumbers*PLUMBER_WAGE, fuel=state.vans.length*85, rent=250+Math.max(0,state.hqCap-2)*130;
   return {payroll,fuel,rent,total:payroll+fuel+rent}; }
 function assetValue(){ let v=state.vans.length*VAN_RESALE; v+=Math.max(0,state.hqCap-2)/HQ_ADD*HQ_COST*0.5;
   for(const id in state.toolsOwned) v+=TOOLS[id].cost*0.5; return v; }
@@ -307,7 +307,7 @@ function dispatch(job){
 }
 function completeJob(van){
   const job=van.job;
-  state.combo = state.comboTimer>0 ? Math.min(6,state.combo+1) : 1; state.comboTimer=5;
+  state.combo = state.comboTimer>0 ? Math.min(6,state.combo+1) : 1; state.comboTimer=10;
   const cm=1+(state.combo-1)*0.12;
   const net=Math.round((job.pay*PAY_MULT-job.parts)*cm);
   state.cash+=net; state.lifetimeRevenue+=job.pay; state.jobsDone++;
@@ -349,9 +349,9 @@ function stepSim(dDays){
 function onNewDay(){
   // SCARCITY: demand driven by CITY SIZE, not your fleet — and deliberately set
   // ABOVE what a small fleet can clear, so you must triage which jobs to take.
-  const rate = 1.6 + developedBuildings().length*0.16;
+  const rate = 0.85 + developedBuildings().length*0.085;
   state.spawnAccum+=rate;
-  const cap=14+state.cityTier*3;
+  const cap=9+state.cityTier*2;
   while(state.spawnAccum>=1){ if(state.jobs.length<cap) spawnJob(); state.spawnAccum-=1; }
   if(state.day-state.lastBillDay>=7){ state.lastBillDay=state.day; payBills(); }
 }
