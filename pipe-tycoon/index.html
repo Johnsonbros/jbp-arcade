@@ -144,14 +144,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg-void);color
 </div>
 <script>
 'use strict';
-const BUILD='v0.6 · 2026-06-01 · paced';
+const BUILD='v0.7 · 2026-06-01 · road-routing';
 console.log('PIPE TYCOON '+BUILD+' loading…');
 
 /* ===================== CONSTANTS ===================== */
 const TILE_W=64, TILE_H=32, FLOOR_H=14;
 const GRID=26, CENTER=GRID/2;
 const DAY_MS=2600, SPEEDS=[0,1,2,4];   // a day ≈ 2.6s @1x — slow enough to read & react
-const VAN_TILES_PER_DAY=11;    // van trip stays watchable at the slower clock
+const VAN_TILES_PER_DAY=17;    // higher because vans now follow roads (~1.5x longer paths)
 const DEPOT={gx:13,gy:13};
 const GOAL=150000;
 const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -295,14 +295,46 @@ function spawnJob(){
 }
 function tileDist(ax,ay,bx,by){ return Math.abs(ax-bx)+Math.abs(ay-by); }
 function busyCrews(){ return state.vans.filter(v=>v.state!=='IDLE').length; }
+
+/* ---- ROAD ROUTING: vans stay on the street grid (roads every 5 tiles) ----
+   Build a polyline: building → its adjacent road → travel along road lines
+   (L-shaped) to the destination's road → into the destination building. */
+const ROAD_STEP=5;
+function clampG(v){ return Math.max(0,Math.min(GRID-1,v)); }
+// nearest road line BETWEEN a and b (so we don't detour away from the target)
+function roadBetween(a,b){ const lo=Math.min(a,b), hi=Math.max(a,b);
+  let best=null,bd=1e9; for(let r=0;r<GRID;r+=ROAD_STEP){ // prefer a road line within [lo,hi], else closest
+    const inside = r>=lo&&r<=hi; const d=(inside?0:Math.min(Math.abs(r-lo),Math.abs(r-hi)));
+    if(d<bd){ bd=d; best=r; } }
+  return clampG(best); }
+function roadPath(ax,ay,bx,by){
+  // pick a shared vertical road (rx) and horizontal road (ry) lying between the two points
+  const rx=roadBetween(ax,bx), ry=roadBetween(ay,by);
+  // route: start → onto vertical road rx (move horizontally) → ride to dest row band → corner at (rx,ry)
+  //        → ride horizontal road ry to dest col → into building. Keeps turns on streets.
+  const pts=[{gx:ax,gy:ay},
+    {gx:rx, gy:ay},      // slide along the block to the vertical street
+    {gx:rx, gy:ry},      // drive the street to the corner
+    {gx:bx, gy:ry},      // turn onto the cross street toward the dest column
+    {gx:bx, gy:by}];     // pull off into the building
+  const out=[]; for(const p of pts){ const l=out[out.length-1]; if(!l||l.gx!==p.gx||l.gy!==p.gy) out.push(p); }
+  return out.length>1?out:[{gx:ax,gy:ay},{gx:bx,gy:by}];
+}
+function pathLen(p){ let d=0; for(let i=1;i<p.length;i++) d+=Math.abs(p[i].gx-p[i-1].gx)+Math.abs(p[i].gy-p[i-1].gy); return d; }
+function startRoute(van,dst){
+  van.path=roadPath(van.gx,van.gy,dst.gx,dst.gy);
+  van.seg=0; van.segT=0;
+  van.travelDays=Math.max(0.25, pathLen(van.path)/VAN_TILES_PER_DAY);
+  van.travel=0;
+}
 function dispatch(job){
   if(!job||job.state!=='OFFERED') return false;
   const van=state.vans.find(v=>v.state==='IDLE');
   if(!van){ toast('No idle van! Buy one in the SHOP.','warn'); sfx('error'); return false; }
   if(busyCrews()>=state.plumbers){ toast('No free crew! Hire a plumber in the SHOP.','warn'); sfx('error'); return false; }
   job.state='ENROUTE';
-  van.state='DRIVING'; van.job=job; van.srcGx=van.gx; van.srcGy=van.gy;
-  van.travel=0; van.travelDays=Math.max(0.18,tileDist(van.gx,van.gy,job.gx,job.gy)/VAN_TILES_PER_DAY); van.work=0;
+  van.state='DRIVING'; van.job=job; van.work=0;
+  startRoute(van, job);
   sfx('dispatch'); return true;
 }
 function completeJob(van){
@@ -320,8 +352,7 @@ function completeJob(van){
   cashPop(p.x,p.y,'+$'+net+(state.combo>=2?' x'+state.combo:''), state.combo>=3?'#FFD23F':'#3DFF9E');
   flashStat('cash'); sfx(state.combo>=3?'combo':'cash');
   state.jobs=state.jobs.filter(j=>j!==job);
-  van.job=null; van.state='RETURNING'; van.srcGx=van.gx; van.srcGy=van.gy;
-  van.travel=0; van.travelDays=Math.max(0.18,tileDist(van.gx,van.gy,DEPOT.gx,DEPOT.gy)/VAN_TILES_PER_DAY);
+  van.job=null; van.state='RETURNING'; startRoute(van, DEPOT);
   recalcNetWorth(); checkWin();
 }
 
@@ -330,12 +361,19 @@ function stepSim(dDays){
   if(state.comboTimer>0){ state.comboTimer-=dDays; if(state.comboTimer<=0)state.combo=0; }
   for(const v of state.vans){
     if(v.state==='DRIVING'||v.state==='RETURNING'){
-      v.travel+=dDays; const t=Math.min(1,v.travel/v.travelDays);
-      const dst=v.state==='DRIVING'?v.job:DEPOT;
-      const e=t*t*(3-2*t);
-      v.curGx=v.srcGx+(dst.gx-v.srcGx)*e; v.curGy=v.srcGy+(dst.gy-v.srcGy)*e;
-      if(t>=1){ v.gx=dst.gx; v.gy=dst.gy; v.curGx=dst.gx; v.curGy=dst.gy;
-        if(v.state==='DRIVING'){ if(v.job&&v.job.state==='ENROUTE'){ v.state='ONSITE'; v.job.state='ONSITE'; v.work=0; } else { v.state='RETURNING'; v.srcGx=v.gx;v.srcGy=v.gy;v.travel=0;v.travelDays=Math.max(0.18,tileDist(v.gx,v.gy,DEPOT.gx,DEPOT.gy)/VAN_TILES_PER_DAY); } }
+      v.travel+=dDays;
+      const t=Math.min(1,v.travel/v.travelDays);
+      // walk the waypoint polyline by fraction of total length
+      const p=v.path; if(p&&p.length>1){
+        const total=pathLen(p); let d=t*total, i=0;
+        while(i<p.length-1){ const seg=Math.abs(p[i+1].gx-p[i].gx)+Math.abs(p[i+1].gy-p[i].gy);
+          if(d<=seg||i===p.length-2){ const f=seg>0?d/seg:1;
+            v.curGx=p[i].gx+(p[i+1].gx-p[i].gx)*f; v.curGy=p[i].gy+(p[i+1].gy-p[i].gy)*f; v.seg=i; break; }
+          d-=seg; i++; }
+      }
+      if(t>=1){ const dst=v.state==='DRIVING'?v.job:DEPOT; v.gx=dst.gx; v.gy=dst.gy; v.curGx=dst.gx; v.curGy=dst.gy; v.path=null;
+        if(v.state==='DRIVING'){ if(v.job&&v.job.state==='ENROUTE'){ v.state='ONSITE'; v.job.state='ONSITE'; v.work=0; }
+          else { v.state='RETURNING'; startRoute(v,DEPOT); } }
         else v.state='IDLE'; }
     } else if(v.state==='ONSITE'){ v.work+=dDays; if(v.work>=v.job.dur*state.toolSpeed) completeJob(v); }
   }
