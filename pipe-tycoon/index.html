@@ -150,7 +150,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg-void);color
 
 <script>
 'use strict';
-const BUILD='v0.2 · 2026-06-01';
+const BUILD='v0.3 · 2026-06-01 · alive';
 console.log('PIPE TYCOON '+BUILD+' loading…');
 /* ============================================================
    0. CONSTANTS
@@ -245,11 +245,50 @@ function genCity(){
       state.buildings.push(t.b);
     }
   }
-  // starter van at depot
-  state.vans=[{id:1,name:'Van 1',state:'IDLE',gx:DEPOT.gx,gy:DEPOT.gy,
-    curGx:DEPOT.gx,curGy:DEPOT.gy,srcGx:DEPOT.gx,srcGy:DEPOT.gy,
-    job:null,travel:0,travelDays:0,work:0,color:'#23E6FF'}];
+  // starter fleet — TWO vans so the city always has motion
+  state.vans=[
+    {id:1,name:'Van 1',state:'IDLE',gx:DEPOT.gx,gy:DEPOT.gy,curGx:DEPOT.gx,curGy:DEPOT.gy,srcGx:DEPOT.gx,srcGy:DEPOT.gy,job:null,travel:0,travelDays:0,work:0,color:'#23E6FF'},
+    {id:2,name:'Van 2',state:'IDLE',gx:DEPOT.gx+1,gy:DEPOT.gy,curGx:DEPOT.gx+1,curGy:DEPOT.gy,srcGx:DEPOT.gx+1,srcGy:DEPOT.gy,job:null,travel:0,travelDays:0,work:0,color:'#3DFF9E'},
+  ];
+  initAmbient();
 }
+
+/* ============================================================
+   3b. AMBIENT LIFE — traffic, clouds, smoke, day/night
+   (driven on REAL time so the city breathes even when paused)
+   ============================================================ */
+const ROAD_LINES=(()=>{ const a=[]; for(let k=0;k<GRID;k+=4) a.push(k); return a; })();
+const TRAFFIC_COLORS=['#9fb4d6','#c9d6f0','#ff9a3d','#b26bff','#ffd23f','#7E8DB5','#FF5FD2'];
+function spawnTraffic(){
+  const horiz=Math.random()<0.5, line=ROAD_LINES[(Math.random()*ROAD_LINES.length)|0], dir=Math.random()<0.5?1:-1;
+  const sp=1.1+Math.random()*1.8, col=TRAFFIC_COLORS[(Math.random()*TRAFFIC_COLORS.length)|0];
+  return horiz ? {gx:dir>0?-1:GRID, gy:line, dx:dir, dy:0, sp, col}
+               : {gx:line, gy:dir>0?-1:GRID, dx:0, dy:dir, sp, col};
+}
+function initAmbient(){
+  state.vClock=0; state.ambient=[]; state.clouds=[]; state.smoke=[];
+  for(let i=0;i<16;i++){ const c=spawnTraffic(); // spread along their lane
+    if(c.dx) c.gx=Math.random()*GRID; else c.gy=Math.random()*GRID; state.ambient.push(c); }
+  for(let i=0;i<6;i++) state.clouds.push({x:Math.random(),y:0.04+Math.random()*0.30,s:0.5+Math.random()*0.9,v:0.006+Math.random()*0.012,a:0.05+Math.random()*0.06});
+}
+function updateAmbient(dtMs){
+  const dt=Math.min(80,dtMs)/1000;        // seconds, clamped
+  state.vClock=(state.vClock||0)+dt;
+  // traffic
+  for(const c of state.ambient){
+    c.gx+=c.dx*c.sp*dt; c.gy+=c.dy*c.sp*dt;
+    if(c.gx< -2||c.gx>GRID+2||c.gy< -2||c.gy>GRID+2){ Object.assign(c, spawnTraffic()); }
+  }
+  // clouds (screen-space drift)
+  for(const cl of state.clouds){ cl.x+=cl.v*dt; if(cl.x>1.25){ cl.x=-0.25; cl.y=0.04+Math.random()*0.30; } }
+  // smoke spawn from a few buildings + age
+  if(state.buildings.length && Math.random()<dt*6){ const b=state.buildings[(Math.random()*state.buildings.length)|0];
+    if(b.floors>=2) state.smoke.push({gx:b.gx,gy:b.gy,top:b.floors*TILE_DEPTH+6,life:0,max:2.2+Math.random()*1.5,dx:(Math.random()-0.5)*6}); }
+  for(const s of state.smoke) s.life+=dt;
+  state.smoke=state.smoke.filter(s=>s.life<s.max);
+}
+// 0=midnight(dark) .. peaks at noon; visual day ~46s real, capped so never too dark
+function nightAmt(){ const f=((state.vClock||0)/46)%1; return 0.46*(1-Math.sin(f*Math.PI)); }
 
 /* ============================================================
    4. JOBS  — spawn / accept-dispatch / resolve
@@ -321,9 +360,9 @@ function stepSim(dDays){
   state.jobs=state.jobs.filter(j=>j.state!=='EXPIRED');
 }
 function onNewDay(){
-  // job spawn: ~0.8 jobs/day early, scales a touch with building count
-  state.spawnAccum += 0.8;
-  while(state.spawnAccum>=1){ if(Math.random()<0.92 && state.jobs.length<8) spawnJob(); state.spawnAccum-=1; }
+  // job spawn: ~1.4 calls/day so the board stays lively for a 2-van crew
+  state.spawnAccum += 1.4;
+  while(state.spawnAccum>=1){ if(Math.random()<0.94 && state.jobs.length<10) spawnJob(); state.spawnAccum-=1; }
 }
 
 /* ============================================================
@@ -401,15 +440,47 @@ function render(){
   if(hover){ const t=state.tiles[hover.gy*GRID+hover.gx];
     if(t){ const x=isoX(hover.gx,hover.gy),y=isoY(hover.gx,hover.gy);
       diamond(x,y,TILE_W,TILE_H,'rgba(35,230,255,.14)','rgba(35,230,255,.7)'); } }
+  // ambient traffic on the streets (under buildings)
+  if(state.ambient) for(const c of state.ambient) drawTraffic(c);
   // buildings back-to-front
   const sorted=state.buildings.slice().sort((a,b)=>(a.gx+a.gy)-(b.gx+b.gy));
   for(const b of sorted) drawBuilding(b);
+  // chimney/vent smoke
+  if(state.smoke) for(const s of state.smoke) drawSmoke(s);
   // job markers
   for(const j of state.jobs) if(j.state==='OFFERED'||j.state==='ENROUTE'||j.state==='ONSITE') drawJobMarker(j);
   // vans on top
   for(const v of state.vans) drawVan(v);
   ctx.restore();
+  // --- screen-space overlays (no camera transform) ---
+  drawClouds();
+  drawNightTint();
   drawHUD(); drawRail();
+}
+function drawTraffic(c){
+  const x=isoX(c.gx,c.gy), y=isoY(c.gx,c.gy);
+  ctx.save();ctx.translate(x,y);
+  ctx.fillStyle=c.col;ctx.globalAlpha=0.92;
+  ctx.beginPath();ctx.moveTo(-5,0);ctx.lineTo(0,2.5);ctx.lineTo(5,0);ctx.lineTo(0,-2.5);ctx.closePath();ctx.fill();
+  // tail glow
+  ctx.globalAlpha=0.5;ctx.fillStyle='rgba(255,210,63,.6)';ctx.fillRect(-1,-1,2,2);
+  ctx.restore();
+}
+function drawSmoke(s){
+  const t=s.life/s.max;
+  const x=isoX(s.gx,s.gy)+s.dx*t, y=isoY(s.gx,s.gy)-s.top-t*26;
+  ctx.save();ctx.globalAlpha=(1-t)*0.28;ctx.fillStyle='#aebdda';
+  ctx.beginPath();ctx.arc(x,y,3+t*5,0,7);ctx.fill();ctx.restore();
+}
+function drawClouds(){
+  if(!state.clouds)return; const W=cv.width,H=cv.height;
+  for(const cl of state.clouds){ const x=cl.x*W, y=cl.y*H, r=44*cl.s*DPR;
+    ctx.save();ctx.globalAlpha=cl.a;ctx.fillStyle='#cdd8f2';
+    ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.arc(x+r*0.8,y+r*0.2,r*0.7,0,7);ctx.arc(x-r*0.7,y+r*0.15,r*0.6,0,7);ctx.fill();ctx.restore(); }
+}
+function drawNightTint(){
+  const n=nightAmt(); if(n<=0.01)return;
+  ctx.save();ctx.fillStyle='rgba(10,16,40,'+n.toFixed(3)+')';ctx.fillRect(0,0,cv.width,cv.height);ctx.restore();
 }
 
 /* ============================================================
@@ -545,6 +616,7 @@ function showError(e){
 }
 function frame(t){ if(!lastT)lastT=t; const dt=t-lastT; lastT=t;
   try{
+    if(state.started) updateAmbient(dt);   // ambient life runs on REAL time (alive even when paused)
     const mult=SPEEDS[state.speed];
     if(state.started&&mult>0){
       const dDays=Math.min(0.5,(dt*mult)/DAY_MS);   // clamp dt spikes (tab refocus)
@@ -564,9 +636,9 @@ window.addEventListener('error',ev=>showError(ev.error||ev.message));
    ============================================================ */
 function boot(){ resize(); genCity(); state.cam.zoom=1.15; centerCamera(); state.started=true; setSpeed(1);
   document.getElementById('boot').style.display='none'; ensureAudio(); sfx('cash');
-  toast('Welcome to Pipe Tycoon! Click a job on the board to dispatch your van.','good');
-  // seed a couple of starter jobs immediately
-  spawnJob(); spawnJob();
+  toast('Welcome to Pipe Tycoon! Click a job on the board to dispatch a van.','good');
+  // seed several starter jobs so the board is busy from second one
+  for(let i=0;i<4;i++) spawnJob();
 }
 document.getElementById('bootStart').onclick=boot;
 try{ document.getElementById('buildStamp').textContent='build '+BUILD; }catch(e){}
