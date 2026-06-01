@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JBP Arcade</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cyan: #00f5ff;
+    --yellow: #ffe600;
+    --red: #ff2d55;
+    --green: #39ff14;
+    --purple: #bf5fff;
+    --dark: #08090d;
+    --card-bg: #0d1117;
+    --border: rgba(0,245,255,0.2);
+  }
+
+  body {
+    background: var(--dark);
+    color: #fff;
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* scanline overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  /* starfield */
+  .stars {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    z-index: 0;
+  }
+  .stars span {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: rgba(255,255,255,0.4);
+    border-radius: 50%;
+    animation: twinkle 3s infinite alternate;
+  }
+
+  @keyframes twinkle { from { opacity: 0.2; } to { opacity: 0.9; } }
+
+  /* header */
+  header {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 48px 20px 24px;
+  }
+
+  .logo-wrap {
+    display: inline-block;
+    position: relative;
+  }
+
+  .logo {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(22px, 5vw, 42px);
+    color: var(--cyan);
+    text-shadow:
+      0 0 8px var(--cyan),
+      0 0 20px var(--cyan),
+      0 0 40px rgba(0,245,255,0.4);
+    letter-spacing: 2px;
+    animation: flicker 8s infinite;
+  }
+
+  @keyframes flicker {
+    0%, 94%, 96%, 98%, 100% { opacity: 1; }
+    95%, 97%, 99% { opacity: 0.85; }
+  }
+
+  .subtitle {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(7px, 1.5vw, 11px);
+    color: var(--yellow);
+    letter-spacing: 3px;
+    margin-top: 10px;
+    text-shadow: 0 0 8px var(--yellow);
+  }
+
+  .insert-coin {
+    margin-top: 16px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 2px;
+    animation: blink 1.2s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* divider */
+  .divider {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 40px;
+    margin: 8px 0 36px;
+  }
+  .divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+    opacity: 0.4;
+  }
+  .divider span {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: var(--cyan);
+    opacity: 0.6;
+    white-space: nowrap;
+  }
+
+  /* game grid */
+  .grid {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px;
+    padding: 0 32px 60px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  /* game card */
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 28px 24px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .card.active {
+    border-color: rgba(0,245,255,0.5);
+    cursor: pointer;
+  }
+  .card.active:hover {
+    transform: translateY(-4px);
+    border-color: var(--cyan);
+    box-shadow: 0 8px 32px rgba(0,245,255,0.15), 0 0 0 1px var(--cyan);
+  }
+
+  .card.coming-soon {
+    border-color: rgba(255,255,255,0.07);
+    opacity: 0.55;
+  }
+
+  /* card corner accent */
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 32px; height: 32px;
+    border-top: 2px solid var(--cyan);
+    border-left: 2px solid var(--cyan);
+    opacity: 0.5;
+  }
+  .card.coming-soon::before { border-color: rgba(255,255,255,0.15); }
+  .card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 32px; height: 32px;
+    border-bottom: 2px solid var(--cyan);
+    border-right: 2px solid var(--cyan);
+    opacity: 0.5;
+  }
+  .card.coming-soon::after { border-color: rgba(255,255,255,0.15); }
+
+  /* card content */
+  .card-icon {
+    font-size: 48px;
+    line-height: 1;
+    filter: drop-shadow(0 0 8px rgba(0,245,255,0.5));
+  }
+  .card.coming-soon .card-icon { filter: grayscale(1); }
+
+  .card-badge {
+    position: absolute;
+    top: 14px; right: 14px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 7px;
+    padding: 4px 8px;
+    border-radius: 2px;
+    letter-spacing: 1px;
+  }
+  .badge-live {
+    background: rgba(57,255,20,0.15);
+    border: 1px solid var(--green);
+    color: var(--green);
+    text-shadow: 0 0 6px var(--green);
+  }
+  .badge-soon {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.4);
+  }
+
+  .card-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(10px, 2vw, 14px);
+    color: #fff;
+    line-height: 1.5;
+  }
+  .card.active .card-title { color: var(--cyan); text-shadow: 0 0 10px rgba(0,245,255,0.4); }
+
+  .card-desc {
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+    line-height: 1.7;
+    flex: 1;
+  }
+
+  .card-meta {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .tag {
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.4);
+  }
+
+  .play-btn {
+    display: block;
+    text-align: center;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    padding: 14px 20px;
+    background: transparent;
+    border: 2px solid var(--cyan);
+    color: var(--cyan);
+    text-decoration: none;
+    letter-spacing: 2px;
+    border-radius: 2px;
+    position: relative;
+    overflow: hidden;
+    transition: color 0.2s, background 0.2s, box-shadow 0.2s;
+  }
+  .play-btn:hover {
+    background: var(--cyan);
+    color: #000;
+    box-shadow: 0 0 20px rgba(0,245,255,0.5);
+  }
+  .play-btn::before {
+    content: '> ';
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .play-btn:hover::before { opacity: 1; }
+
+  /* footer */
+  footer {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 20px;
+    font-size: 10px;
+    color: rgba(255,255,255,0.2);
+    letter-spacing: 2px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+  }
+  footer a { color: rgba(0,245,255,0.4); text-decoration: none; }
+  footer a:hover { color: var(--cyan); }
+
+  @media (max-width: 480px) {
+    header { padding: 36px 20px 16px; }
+    .grid { padding: 0 16px 48px; gap: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stars" id="stars"></div>
+
+<header>
+  <div class="logo-wrap">
+    <div class="logo">JBP ARCADE</div>
+  </div>
+  <div class="subtitle">JOHNSON BROS. PLUMBING</div>
+  <div class="insert-coin">— INSERT COIN —</div>
+</header>
+
+<div class="divider"><span>SELECT YOUR GAME</span></div>
+
+<div class="grid">
+
+  <!-- PIPE RESCUE -->
+  <div class="card active" onclick="window.location='/pipe-rescue/'">
+    <span class="card-badge badge-live">LIVE</span>
+    <div class="card-icon">🔧</div>
+    <div class="card-title">PIPE RESCUE</div>
+    <div class="card-desc">
+      A busted pipe is flooding the basement. Jump the breaks, dodge the pressure spikes,
+      and keep the water contained. How many levels can you survive?
+    </div>
+    <div class="card-meta">
+      <span class="tag">ARCADE</span>
+      <span class="tag">MOBILE OK</span>
+      <span class="tag">HIGH SCORE</span>
+    </div>
+    <a class="play-btn" href="/pipe-rescue/">PLAY NOW</a>
+  </div>
+
+  <!-- COMING SOON 1 -->
+  <div class="card coming-soon">
+    <span class="card-badge badge-soon">COMING SOON</span>
+    <div class="card-icon">🚿</div>
+    <div class="card-title">DRAIN MASTER</div>
+    <div class="card-desc">
+      Snake the clog, beat the clock. A puzzle game about clearing the most
+      diabolical drain blockages in Greater Boston.
+    </div>
+    <div class="card-meta">
+      <span class="tag">PUZZLE</span>
+      <span class="tag">COMING SOON</span>
+    </div>
+  </div>
+
+  <!-- COMING SOON 2 -->
+  <div class="card coming-soon">
+    <span class="card-badge badge-soon">COMING SOON</span>
+    <div class="card-icon">💧</div>
+    <div class="card-title">PRESSURE TEST</div>
+    <div class="card-desc">
+      Manage the pressure across 10 floors of a Boston triple-decker
+      without blowing a fitting. One wrong valve and it's game over.
+    </div>
+    <div class="card-meta">
+      <span class="tag">STRATEGY</span>
+      <span class="tag">COMING SOON</span>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  &copy; 2026 <a href="https://thejohnsonbros.com">Johnson Bros. Plumbing &amp; Drain Cleaning</a>
+  &nbsp;|&nbsp; Greater Boston, MA
+</footer>
+
+<script>
+  // generate stars
+  const stars = document.getElementById('stars');
+  for (let i = 0; i < 120; i++) {
+    const s = document.createElement('span');
+    s.style.left = Math.random() * 100 + '%';
+    s.style.top = Math.random() * 100 + '%';
+    s.style.animationDelay = (Math.random() * 3) + 's';
+    s.style.animationDuration = (2 + Math.random() * 3) + 's';
+    s.style.width = s.style.height = (Math.random() > 0.8 ? '3px' : '2px');
+    stars.appendChild(s);
+  }
+</script>
+</body>
+</html>

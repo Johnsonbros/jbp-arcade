@@ -1,0 +1,3 @@
+# design/spec docs — keep the public repo game-only
+*.md
+pipe-tycoon/*.png
